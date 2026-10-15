@@ -1,0 +1,1129 @@
+/* FleetManager – Standalone-App. Aufbau: 0 Tokens · 1 Basis · 2 Komponenten · 3 Rahmen · 4–9 je Screen · 10 Druck · 11 Aufruf-Anzeige · 12 Aktivierung & Anbieter · 13 Installation.
+   Regeln (ui-review.md §2): R1 eine gefüllte Hauptaktion je Karte/Sheet/Screen · R2 keine Farbe ohne Wort/Symbol ·
+   R3 Textgrau nie heller als --ink-3 · R4 nichts unter 44 px tippbar · R5 keine Maße/Farben außerhalb der Tokens
+   (grep -nE "(font-size|border-radius|padding|gap):" zeigt nur var(--…)) · R6 neue Texte ohne Pfeil/Emoji · R7 Destruktives rot + Bestätigung.
+   Jeder Screen-Abschnitt gehört seinem Screen-Modul; Komponenten und Tokens nur hier oben ändern. */
+
+/* ==== 0 Tokens ==== */
+:root {
+  color-scheme: light;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;   /* keine Webfonts */
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;                                  /* nur {marke}-Platzhalter, URLs */
+
+  /* Schrift: sechs Größen (+ Zeilenhöhe), Gewichte nur 400/600/700 */
+  --fs-1: 13px; --lh-1: 18px;   /* Meta, Hinweise, Tags – kleinste erlaubte Größe */
+  --fs-2: 15px; --lh-2: 22px;   /* Sekundärtext, Labels, Button-Beschriftung */
+  --fs-3: 17px; --lh-3: 24px;   /* Fließtext, Eingabefelder (≥ 16 px gegen iOS-Zoom), Zeilentitel */
+  --fs-4: 20px; --lh-4: 28px;   /* Timer, Sheet-Titel, Kachel-Titel */
+  --fs-5: 24px; --lh-5: 30px;   /* Seitentitel der Team-Screens */
+  --fs-6: 32px; --lh-6: 38px;   /* Überschrift der Kundenseiten */
+  --fs-0: 12px; --lh-0: 16px;   /* Ausnahme: Beschriftung der Tab-Leiste */
+  --fs-num: 22px; --fs-num-sm: 18px;                  /* Nummern-Badges */
+  --fs-ticket: clamp(120px, 34vw, 200px); --fs-pin: 28px;   /* Ticketnummer, PIN-Feld */
+
+  /* Abstände (Skala 4 · 8 · 12 · 16 · 24 · 32; --s-0 nur für Haarlinien-Innenabstände) */
+  --s-0: 2px; --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px; --s-6: 32px;
+
+  /* Radien: 8 (Buttons, Felder, Segmente, Auswahlzeilen), 12 (Karten, Listen, Sheets), 6 nur für Tags ≤ 24 px; rund nur für Punkte, Schalter, Radio */
+  --r-0: 6px; --r-1: 8px; --r-2: 12px;
+
+  /* Maße */
+  --tap: 44px; --tap-sm: 36px; --tap-lg: 52px;        /* Tippflächen: normal, kleine Werkzeugleiste (+ Trefferfläche), Formular/Sheet */
+  --bar-h: 56px; --tabbar-h: 56px;                    /* Leiste (ab 720 px 64), Tab-Leiste unten */
+  --ic: 20px; --ic-lg: 24px; --ic-sm: 16px;           /* Symbole */
+  --num: 48px; --num-sm: 40px;                        /* Nummern-Badges */
+  --z-bar: 20; --z-toast: 50;                          /* Leiste und Tab-Leiste, Toast; <dialog> liegt im Top-Layer und braucht keinen z-index */
+
+  /* Neutrale Farben (berechnete Kontraste in ui-review.md §3.5) */
+  --ink: #17191c; --ink-2: #444a52; --ink-3: #5b626b; --ph: #6b727b;                       /* Text: Fließtext, Sekundär, Meta (hellstes erlaubtes Grau), Platzhalter */
+  --bg: #f3f4f6; --surface: #ffffff; --surface-2: #eceef1;                                  /* Seite (Team) / Karte, Feld / eingelassene Fläche */
+  --line: #dde0e5; --line-strong: #b9bfc8; --field: #858c96;                               /* Rahmen: Karte / Sekundärbutton / Eingabefeld (≥ 3:1) */
+
+  /* Akzent: applyBrand() überschreibt diese vier aus accent_color (js/color.js); hier stehen die Werte der Standardfarbe #1e6fe0 (accentVars, tests/pwa/accent.test.mjs prüft den Gleichklang) */
+  --accent: #1e6fe0; --on-accent: #ffffff; --accent-ink: #1c66ce; --accent-tint: #e4eefb;
+  /* „unterwegs“: Akzent – oder neutral, wenn der Farbton mit einer Zustandsfarbe kollidiert (ebenfalls von applyBrand) */
+  --live: var(--accent); --on-live: var(--on-accent); --live-ink: var(--accent-ink); --live-tint: var(--accent-tint);
+
+  /* Zustände (markenunabhängig; immer mit Wort und Punkt/Symbol) */
+  --st-free: #1a8a4a;    --st-free-ink: #14663a;    --st-free-tint: #e3f3e8;
+  --st-called: #b87400;  --st-called-ink: #7a4a00;  --st-called-tint: #fdf0d2;  --st-called-solid: #f2a900;
+  --st-late: #c62828;    --st-late-ink: #a31d1d;    --st-late-tint: #fdeaea;
+  --st-blocked: #6b7078; --st-blocked-ink: #3f454d; --st-blocked-tint: #e9ebee;
+  --danger: #b42318;
+
+  /* Übrige feste Werte – damit außerhalb dieses Blocks keine Farbe und kein Schatten vorkommt */
+  --white: #ffffff;
+  --warn-bg: #fff4d6; --warn-ink: #5c3a00; --err-ink: #8a1818;     /* Banner Warnung / Fehler (Fehler-Fläche: --st-late-tint) */
+  --danger-line: #e0b3ae; --late-surface: #fffafa; --sw-off: #b4bbc4;
+  --scrim: rgba(23, 25, 28, .45);
+  --on-ink-soft: rgba(255, 255, 255, .16);                          /* Aktion im Toast */
+  --shadow-pop: 0 8px 24px rgba(16, 24, 40, .22);                   /* nur Toast und Popover */
+  --shadow-knob: 0 1px 3px rgba(0, 0, 0, .3);                       /* Schalter-Knopf */
+  --ring: color-mix(in srgb, var(--accent) 45%, transparent);       /* weicher Fokusring der Textfelder */
+}
+@media (min-width: 720px) { :root { --bar-h: 64px; } }
+
+/* ==== 1 Basis ==== */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+html, body { margin: 0; }
+body { background: var(--surface); color: var(--ink); font-family: var(--font); font-size: var(--fs-3); line-height: var(--lh-3); font-weight: 400; -webkit-font-smoothing: antialiased; }
+body:has(.admin-bar) { background: var(--bg); }          /* Team-Register: grauer Grund; Kundenseiten bleiben weiß */
+h1, h2, h3, h4, p, ul, ol, dl, dd, figure { margin: 0; padding: 0; }
+a { color: inherit; }
+button, input, select, textarea { font: inherit; color: inherit; }
+img { max-width: 100%; }
+code { font-family: var(--mono); font-size: var(--fs-1); background: var(--surface-2); padding: 0 var(--s-1); border-radius: var(--r-0); }
+[hidden] { display: none !important; }
+:focus-visible { outline: 3px solid var(--accent-ink); outline-offset: 2px; }
+/* in Containern mit overflow (Tabs, Segmente, Leisten) liegt der Ring innen, sonst würde er abgeschnitten */
+.tabs a:focus-visible, .v-strip > :focus-visible, .vstrip > :focus-visible, .seg > :focus-visible, .seg.pick > :focus-visible { outline-offset: calc(-1 * var(--s-1)); }
+.seg.pick > :has(input:focus-visible) { outline: 3px solid var(--accent-ink); outline-offset: calc(-1 * var(--s-1)); }
+.muted { color: var(--ink-3); }
+.accent { color: inherit; }                                /* Akzent ist keine Textfarbe für Überschriften/Zahlen (ui-review §3.6) */
+.pre { white-space: pre-line; }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+body.kiosk { -webkit-user-select: none; user-select: none; }
+
+/* Symbole (js/icons.js): Strich in Textfarbe, 20 px; .lg 24 px; .sm 16 px; .flip spiegelt chevR zu „zurück“ */
+.i { width: var(--ic); height: var(--ic); flex: none; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.i.lg { width: var(--ic-lg); height: var(--ic-lg); }
+.i.sm { width: var(--ic-sm); height: var(--ic-sm); }
+.i.flip { transform: scaleX(-1); }
+
+/* Bewegung: nur Press-Feedback und Sheet; wer reduzierte Bewegung wünscht, bekommt keine Übergänge */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+
+/* ==== 2 Komponenten ==== */
+
+/* -- Buttons: .primary (genau einer je Karte/Sheet/Screen) · .secondary · .quiet · .danger; Größen .lg .sm .icon .block --
+   Alte Namen laufen weiter: .outline = .secondary, .ghost und .link = .quiet, .small = normal (44 px), .wide = .block */
+.btn, .link { display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2); min-height: var(--tap); padding: 0 var(--s-4); border: 1px solid transparent; border-radius: var(--r-1); background: none; color: var(--ink); font-size: var(--fs-2); line-height: var(--lh-2); font-weight: 600; text-decoration: none; text-align: center; cursor: pointer; transition: filter 100ms; -webkit-tap-highlight-color: transparent; }
+.btn:active { filter: brightness(.92); }
+summary.btn { list-style: none; }
+summary.btn::-webkit-details-marker { display: none; }
+.btn.primary { background: var(--accent); color: var(--on-accent); }
+.btn.secondary, .btn.outline { background: var(--surface); border-color: var(--line-strong); color: var(--ink); }
+.btn.quiet, .btn.ghost, .link { padding: 0 var(--s-3); color: var(--accent-ink); }
+.btn.quiet:active, .btn.ghost:active, .link:active { background: var(--surface-2); filter: none; }
+.btn.danger { background: var(--surface); border-color: var(--danger-line); color: var(--st-late-ink); }
+.btn.danger.solid { background: var(--st-late); border-color: var(--st-late); color: var(--white); }
+.btn.lg { min-height: var(--tap-lg); padding: 0 var(--s-5); font-size: var(--fs-3); line-height: var(--lh-3); }
+.btn.sm { position: relative; min-height: var(--tap-sm); padding: 0 var(--s-3); font-size: var(--fs-1); line-height: var(--lh-1); }
+.btn.sm::after { content: ""; position: absolute; inset: calc(-1 * var(--s-1)) 0; }        /* Trefferfläche 44 px */
+.btn.block, .btn.wide { display: flex; width: 100%; }
+.btn.grow { flex: 1 1 auto; }
+.btn.icon { width: var(--tap); padding: 0; flex: none; }
+.btn[disabled], .btn.disabled { background: var(--surface-2); border-color: transparent; color: var(--ink-3); cursor: not-allowed; filter: none; }   /* kein Opacity-Trick: Fläche + Schrift ≥ 5:1 */
+.link[data-delete], .link[data-action="delete"], .link[data-action="delete-damage"], form[data-action="delete"] .link, form[data-action="delete"] .btn.ghost, form[data-action="delete"] .btn.quiet, .danger-zone .link { color: var(--st-late-ink); }   /* R7: Destruktives rot */
+@media (hover: hover) {
+  .btn.secondary:hover, .btn.outline:hover { background: var(--surface-2); }
+  .btn.primary:hover { filter: brightness(.95); }
+  .btn.quiet:hover, .btn.ghost:hover, .link:hover { background: var(--surface-2); }
+}
+/* Beschriftung nur ab 560 px (darunter Symbol allein, aria-label am Element) */
+.btn.has-lbl { width: var(--tap); padding: 0; }
+.btn.has-lbl .lbl { display: none; }
+@media (min-width: 560px) { .btn.has-lbl { width: auto; padding: 0 var(--s-4); } .btn.has-lbl .lbl { display: inline; } }
+
+/* -- Chips (alt): Filter, Export, Umschalter; ersetzt durch .seg.pick bzw. .btn, solange die Screens noch .chip nutzen -- */
+.chips { display: flex; flex-wrap: wrap; gap: var(--s-2); margin: var(--s-3) 0 var(--s-4); }
+.chip { display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2); min-height: var(--tap); padding: 0 var(--s-4); border: 1px solid var(--line-strong); border-radius: var(--r-1); background: var(--surface); color: var(--ink); font-size: var(--fs-2); line-height: var(--lh-2); font-weight: 600; text-decoration: none; cursor: pointer; }
+.chip.active { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.chip:active { background: var(--surface-2); }
+.chip.active:active { background: var(--ink); filter: brightness(1.2); }
+
+/* -- Segmente: .seg (Kontakt-Trio u. Ä.) und .seg.pick (Auswahl: Filter, Begleiter, Sperrgründe); aktiv = .on / aria-current / angehakter Radio -- */
+.seg { display: flex; border: 1px solid var(--line-strong); border-radius: var(--r-1); overflow: hidden; background: var(--surface); }
+.seg > * { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; gap: var(--s-2); min-height: var(--tap); padding: 0 var(--s-2); border-left: 1px solid var(--line); color: var(--ink); font-size: var(--fs-2); line-height: var(--lh-2); font-weight: 600; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: none; cursor: pointer; }
+.seg > *:first-child { border-left: 0; }
+.seg.pick, .staff-chips, .reason-chips { display: flex; gap: var(--s-0); padding: var(--s-0); background: var(--surface-2); border: 1px solid var(--surface-2); border-radius: var(--r-1); overflow-x: auto; scrollbar-width: none; }
+.seg.pick > *, .staff-chips .chip, .reason-chips .chip { flex: 1 0 auto; min-height: 40px; padding: 0 var(--s-3); border: 1px solid transparent; border-radius: var(--r-0); background: none; color: var(--ink-2); }
+.seg.pick > .on, .seg.pick > [aria-current], .seg.pick > [aria-pressed="true"], .seg.pick > :has(input:checked),
+.staff-chips .chip:has(input:checked), .reason-chips .chip.active { background: var(--surface); border-color: var(--line-strong); color: var(--ink); }
+.seg.pick input { position: absolute; opacity: 0; pointer-events: none; }
+.staff-chips, .reason-chips { margin: 0; }
+
+/* -- Status (Wort + Punkt/Symbol), Nummern-Badge, Tag -- */
+.status { display: inline-flex; align-items: center; gap: var(--s-2); font-size: var(--fs-1); line-height: var(--lh-1); font-weight: 600; color: var(--ink-2); }
+.status::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--st, var(--field)); }
+.status.free { --st: var(--st-free); color: var(--st-free-ink); }
+.status.called { --st: var(--st-called); color: var(--st-called-ink); }
+.status.driving { --st: var(--live); color: var(--live-ink); }
+.status.late { --st: var(--st-late); color: var(--st-late-ink); }
+.status.blocked { --st: var(--st-blocked); color: var(--st-blocked-ink); }
+.status.wait::before, .status.done::before { background: none; border: 2px solid var(--field); }
+.status.done::before { border-color: var(--st-free); }
+.status.icon::before { display: none; }                      /* mit 16-px-Symbol statt Punkt (gesperrt = lock) */
+.status.icon .i { width: var(--ic-sm); height: var(--ic-sm); }
+.num, .q-num, .v-code { flex: none; display: grid; place-items: center; min-width: var(--num); height: var(--num); padding: 0 var(--s-1); border-radius: var(--r-1); background: var(--surface-2); color: var(--ink); font-size: var(--fs-num); line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; }
+.num.sm { min-width: var(--num-sm); height: var(--num-sm); font-size: var(--fs-num-sm); }
+.num.called, .q-card.called .q-num { background: var(--st-called-solid); color: var(--ink); }
+.num.driving, .q-card.driving .q-num, .v-code.unterwegs { background: var(--live); color: var(--on-live); }
+.num.late, .q-card.late .q-num, .v-code.ueberfaellig { background: var(--st-late); color: var(--white); }
+.tag { display: inline-flex; align-items: center; gap: var(--s-1); padding: var(--s-0) var(--s-2); border-radius: var(--r-0); background: var(--surface-2); color: var(--ink-2); font-size: var(--fs-1); line-height: var(--lh-1); font-weight: 600; white-space: nowrap; }
+.tag.warn { background: var(--st-called-tint); color: var(--st-called-ink); }
+.tag.accent, .tag.tf { background: var(--accent-tint); color: var(--accent-ink); }
+.tag.ok { background: var(--st-free-tint); color: var(--st-free-ink); }
+.tag.late { background: var(--st-late-tint); color: var(--st-late-ink); }
+.tag.blocked { background: var(--st-blocked-tint); color: var(--st-blocked-ink); }
+.tag.fi { background: var(--surface-2); color: var(--ink-2); }
+.n, .pill { color: var(--ink-3); font-size: var(--fs-2); line-height: var(--lh-2); font-weight: 600; }       /* Zähler hinter Überschriften: Text, keine Pille */
+
+/* -- Karte, Liste, Zeile, Abschnittszeile -- */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-2); padding: var(--s-4); }
+.card.called, .q-card.called { border-color: var(--st-called); box-shadow: 0 0 0 1px var(--st-called); }               /* Zustand = 2 px Rand (Rand + Ring, kein Layoutsprung) */
+.card.driving, .q-card.driving { border-color: var(--live); box-shadow: 0 0 0 1px var(--live); }
+.card.late, .q-card.late { border-color: var(--st-late); box-shadow: 0 0 0 1px var(--st-late); background: var(--late-surface); }
+.card.next { background: var(--accent-tint); border-color: color-mix(in srgb, var(--accent) 50%, var(--surface)); }
+.cards { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-3); }
+.list { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-2); overflow: hidden; }
+.row { display: flex; align-items: center; gap: var(--s-3); min-height: 64px; padding: var(--s-3) var(--s-4); border-top: 1px solid var(--line); color: inherit; text-decoration: none; }
+.row:first-child { border-top: 0; }
+.row .grow { flex: 1; min-width: 0; }
+.row .ttl { font-size: var(--fs-3); line-height: var(--lh-3); font-weight: 600; overflow-wrap: anywhere; }
+.row .desc { font-size: var(--fs-2); line-height: var(--lh-2); color: var(--ink-2); }
+.row .chev { color: var(--ink-3); }
+.sec, .section-title { display: flex; align-items: baseline; gap: var(--s-2); margin: var(--s-5) 0 var(--s-2); }
+.sec h2, .section-title { font-size: var(--fs-3); line-height: var(--lh-3); font-weight: 700; }
+.sec .aside { margin-left: auto; font-size: var(--fs-1); color: var(--ink-3); text-align: right; }
+.sec.small h2 { color: var(--ink-3); font-size: var(--fs-1); line-height: var(--lh-1); font-weight: 600; }
+.stack { display: grid; gap: var(--s-3); }
+/* Aufklapp-Zeile: auf <summary> oder <button> (Titel + Zähler .n + chevD rechts) */
+.disclosure { display: flex; align-items: center; gap: var(--s-2); width: 100%; min-height: 48px; padding: 0 var(--s-4); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-2); color: var(--ink); font-size: var(--fs-3); line-height: var(--lh-3); font-weight: 600; text-align: left; cursor: pointer; list-style: none; }
+.disclosure::-webkit-details-marker { display: none; }
+.disclosure > .i:last-child { margin-left: auto; color: var(--ink-3); }
+
+/* -- Kennzahlen: Zusammenfassungszeile (.summary, ersetzt die Kacheln); .stat/.stats bis die Screens umgestellt sind -- */
+.summary, .admin-main .sub { margin: 0 0 var(--s-4); color: var(--ink-2); font-size: var(--fs-2); line-height: var(--lh-2); }
+.summary b, .admin-main .sub b { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--s-3); margin-bottom: var(--s-4); }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-2); padding: var(--s-3) var(--s-4); }
+.stat span { display: block; color: var(--ink-3); font-size: var(--fs-1); line-height: var(--lh-1); }
+.stat strong { display: block; font-size: var(--fs-4); line-height: var(--lh-4); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* -- Felder: Label oben, „(optional)“ im Label, Hilfe/Fehler darunter -- */
+.field { display: block; margin-bottom: var(--s-4); }
+.lbl { display: block; margin-bottom: var(--s-1); color: var(--ink); font-size: var(--fs-2); line-height: var(--lh-2); font-weight: 600; }
+.lbl small { color: var(--ink-3); font-size: inherit; font-weight: 400; }
+.lbl em, .consent em { color: var(--ink-2); font-style: normal; }
+input[type=text], input:not([type]), input[type=email], input[type=tel], input[type=password], input[type=search], input[type=number], select, textarea {
+  display: block; width: 100%; min-height: 48px; padding: var(--s-2) var(--s-3); border: 1px solid var(--field); border-radius: var(--r-1); background: var(--surface); color: var(--ink);
+  font-size: var(--fs-3); line-height: var(--lh-3); outline: none; }
+textarea { min-height: 96px; resize: vertical; }
+::placeholder { color: var(--ph); opacity: 1; }
+input:focus, textarea:focus, select:focus { border-color: var(--accent-ink); box-shadow: 0 0 0 3px var(--ring); }
+input.invalid, textarea.invalid { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger); }
+input[type=checkbox], input[type=radio] { accent-color: var(--accent-ink); }
+/* Feld mit Symbol links (Suche): <div class="has-ic"><svg class="i">…</svg><input type="search"></div> */
+.has-ic { position: relative; }
+.has-ic > .i { position: absolute; left: var(--s-3); top: 50%; transform: translateY(-50%); color: var(--ink-3); pointer-events: none; }
+.has-ic > input { padding-left: calc(var(--s-6) + var(--s-2)); }
+.help, .hint { display: block; margin-top: var(--s-1); color: var(--ink-3); font-size: var(--fs-1); line-height: var(--lh-1); }
+.err, .errmsg { margin: var(--s-1) 0 0; color: var(--danger); font-size: var(--fs-2); line-height: var(--lh-2); }
+.errmsg { display: flex; align-items: flex-start; gap: var(--s-2); }
+.errmsg > .i { margin-top: var(--s-0); }
+.small-field input { max-width: 160px; }
+
+/* -- Auswahlzeilen: .option (= .choice; Checkbox = Quadrat, Einfachauswahl/Radio = Kreis), 56 px; .consent ruhige Einwilligungsfläche --
+   Markup: <label class="option"><input type="checkbox|radio"><span class="box"></span><span>Text</span></label> */
+.options { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-2); }
+.option, .choice, .consent { position: relative; display: flex; align-items: center; gap: var(--s-3); cursor: pointer; user-select: none; }
+.option, .choice { min-height: 56px; padding: var(--s-2) var(--s-3); border: 1px solid var(--line-strong); border-radius: var(--r-1); background: var(--surface); font-size: var(--fs-3); line-height: var(--lh-3); font-weight: 600; }
+.option input, .choice input, .consent input { position: absolute; opacity: 0; pointer-events: none; }
+.box { flex: none; width: var(--ic-lg); height: var(--ic-lg); border: 2px solid var(--field); border-radius: var(--r-0); background: var(--surface); display: grid; place-items: center; }
+.option:has(input[type=radio]) .box, .choice:has(input[type=radio]) .box { border-radius: 50%; }
+.option input:checked ~ .box, .choice input:checked ~ .box, .consent input:checked ~ .box { background: var(--accent); border-color: var(--accent-ink); }
+.option input:checked ~ .box::after, .choice input:checked ~ .box::after, .consent input:checked ~ .box::after { content: ""; width: 6px; height: 11px; border: solid var(--on-accent); border-width: 0 2.5px 2.5px 0; transform: rotate(45deg) translate(-1px, -1px); }
+.option:has(input[type=radio]:checked) .box::after, .choice:has(input[type=radio]:checked) .box::after { width: 10px; height: 10px; border: 0; border-radius: 50%; background: var(--on-accent); transform: none; }
+.option:has(input:checked), .choice:has(input:checked) { border-color: var(--accent-ink); box-shadow: 0 0 0 1px var(--accent-ink); background: var(--accent-tint); }
+.option input:focus-visible ~ .box, .choice input:focus-visible ~ .box, .consent input:focus-visible ~ .box { outline: 3px solid var(--accent-ink); outline-offset: 2px; }
+.consent { align-items: flex-start; margin: var(--s-5) 0 0; padding: var(--s-3) var(--s-4); background: var(--surface-2); border: 1px solid transparent; border-radius: var(--r-2); color: var(--ink-2); font-size: var(--fs-2); line-height: var(--lh-2); }
+.consent .box { margin-top: var(--s-0); }
+.consent.invalid { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger); }
+.consent + .consent { margin-top: var(--s-2); }
+.inline-check { display: inline-flex; align-items: center; gap: var(--s-2); min-height: var(--tap); color: var(--ink-2); font-size: var(--fs-2); cursor: pointer; }
+.inline-check input { width: var(--ic-lg); height: var(--ic-lg); margin: 0; }
+
+/* -- Schalter: speichert in den Einstellungen sofort; Zeile ≥ 56 px, Titel links, Beschreibung darunter, Schalter rechts -- */
+.setrow { display: flex; align-items: center; gap: var(--s-3); min-height: 56px; padding: var(--s-3) var(--s-4); border-top: 1px solid var(--line); color: inherit; text-decoration: none; }
+.setrow:first-child { border-top: 0; }
+.setrow .grow { flex: 1; min-width: 0; }
+.setrow .ttl { font-size: var(--fs-3); line-height: var(--lh-3); }
+.setrow .desc { color: var(--ink-3); font-size: var(--fs-1); line-height: var(--lh-1); }
+.setrow .val { color: var(--ink-3); font-size: var(--fs-2); }
+.switch { display: flex; align-items: center; gap: var(--s-3); min-height: 56px; margin-bottom: var(--s-2); cursor: pointer; }
+.switch input { position: absolute; opacity: 0; pointer-events: none; }
+.switch-text { order: -1; flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: var(--fs-3); line-height: var(--lh-3); }
+.switch-text small { color: var(--ink-3); font-size: var(--fs-1); line-height: var(--lh-1); }
+.slider, .sw { flex: none; position: relative; width: 48px; height: 28px; border-radius: 999px; background: var(--sw-off); }
+.slider::after, .sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: var(--white); box-shadow: var(--shadow-knob); transition: transform 100ms; }
+.switch input:checked + .slider, input:checked + .sw, .sw.on { background: var(--accent); }
+.switch input:checked + .slider::after, input:checked + .sw::after, .sw.on::after { transform: translateX(20px); }
+.switch input:focus-visible + .slider, input:focus-visible + .sw { outline: 3px solid var(--accent-ink); outline-offset: 2px; }
+.setrow input { position: absolute; opacity: 0; pointer-events: none; }
+
+/* -- Hinweise: .banner (dauerhaft, handlungsrelevant; höchstens eines je Screen) und .toast (flüchtig, #app-flash) -- */
+.banner, .flash { display: flex; align-items: flex-start; gap: var(--s-3); margin: 0 0 var(--s-3); padding: var(--s-3) var(--s-4); border-radius: var(--r-1); background: var(--surface-2); color: var(--ink); font-size: var(--fs-2); line-height: var(--lh-2); }
+.banner > .i, .flash > .i { margin-top: var(--s-0); }
+.banner a, .banner .link, .flash a { position: relative; color: inherit; font-weight: 700; text-decoration: underline; }
+.banner a::after, .flash a::after { content: ""; position: absolute; inset: calc(-1 * var(--s-3)) calc(-1 * var(--s-1)); }   /* Trefferfläche ≥ 44 px, Zeilenhöhe bleibt */
+.banner.info { background: var(--accent-tint); color: var(--ink); }
+.banner.warn, .flash.warn { background: var(--warn-bg); color: var(--warn-ink); }
+.banner.error, .flash.error { background: var(--st-late-tint); color: var(--err-ink); }
+.banner .notice-lines { display: grid; gap: var(--s-1); min-width: 0; }   /* gebündelter Hinweis (Einrichtung, Lizenz): eine Zeile je Thema */
+.flash.success { background: var(--st-free-tint); color: var(--st-free-ink); }
+#app-flash { position: fixed; left: var(--s-4); right: var(--s-4); bottom: calc(var(--s-4) + env(safe-area-inset-bottom)); margin: 0 auto; width: fit-content; max-width: 480px; z-index: var(--z-toast); display: flex; align-items: center; gap: var(--s-3); padding: var(--s-2) var(--s-2) var(--s-2) var(--s-4); border-radius: var(--r-2); background: var(--ink); color: var(--white); font-size: var(--fs-2); line-height: var(--lh-2); box-shadow: var(--shadow-pop); }
+body:has(.tabbar) #app-flash { bottom: calc(var(--tabbar-h) + var(--s-3) + env(safe-area-inset-bottom)); }
+#app-flash .i { margin-top: 0; }
+#app-flash .toast-text { min-width: 0; overflow-wrap: anywhere; }
+#app-flash .btn { flex: none; background: var(--on-ink-soft); color: var(--white); }
+#app-flash[hidden] { display: none; }
+@media (min-width: 720px) { #app-flash, body:has(.tabbar) #app-flash { left: var(--s-5); right: auto; margin: 0; bottom: var(--s-5); } }
+
+/* -- Dialog: .sheet (Handy: unten angedockt, ab 720 px zentriert), .confirm (kleine Rückfrage), .privacy-dialog (Datenschutztext) --
+   Öffnen/Schließen/Escape/Scrim-Tipp erledigt ui.openSheet(dialog). Aufbau: .sheet-h (Titel + Schließen) · .sheet-b (scrollt) · .sheet-f (fester Button) */
+dialog.sheet, dialog.privacy-dialog, dialog.confirm { border: 0; color: var(--ink); background: var(--surface); text-align: left; overflow: hidden; }
+dialog.sheet { padding: 0; }
+dialog.sheet, dialog.privacy-dialog { width: 100%; max-width: none; max-height: 92vh; max-height: 92dvh; margin: auto auto 0; border-radius: var(--r-2) var(--r-2) 0 0; }
+dialog.sheet[open], dialog.privacy-dialog[open] { display: flex; flex-direction: column; animation: sheet-in 180ms ease-out; }
+dialog.confirm { width: calc(100% - 2 * var(--s-4)); max-width: 360px; margin: auto; border-radius: var(--r-2); }
+dialog.confirm[open] { animation: sheet-in 180ms ease-out; }
+dialog.sheet::backdrop, dialog.privacy-dialog::backdrop, dialog.confirm::backdrop { background: var(--scrim); }
+dialog[open]::backdrop { animation: scrim-in 180ms ease-out; }
+@keyframes sheet-in { from { transform: translateY(var(--s-5)); opacity: 0; } }
+@keyframes scrim-in { from { opacity: 0; } }
+@media (min-width: 720px) {
+  dialog.sheet, dialog.privacy-dialog { width: 520px; margin: auto; border-radius: var(--r-2); max-height: 88vh; max-height: 88dvh; }
+  dialog.privacy-dialog { width: 640px; }
+}
+.sheet-h { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-3) var(--s-2) var(--s-3) var(--s-4); border-bottom: 1px solid var(--line); }
+.sheet-h h2 { flex: 1; min-width: 0; font-size: var(--fs-3); line-height: var(--lh-3); font-weight: 700; }
+.sheet-h small { display: block; color: var(--ink-3); font-size: var(--fs-1); line-height: var(--lh-1); font-weight: 400; }
+.sheet-b { flex: 1 1 auto; overflow: auto; overscroll-behavior: contain; padding: var(--s-4); }
+.sheet-f { padding: var(--s-3) var(--s-4) calc(var(--s-4) + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--surface); }
+.sheet-f .why { margin-bottom: var(--s-2); color: var(--ink-3); font-size: var(--fs-1); line-height: var(--lh-1); text-align: center; }   /* „Noch offen: …“ über dem Button */
+.group-lbl { margin: var(--s-4) 0 var(--s-2); color: var(--ink-3); font-size: var(--fs-1); line-height: var(--lh-1); font-weight: 600; }
+.group-lbl:first-child { margin-top: 0; }
+dialog.confirm { padding: var(--s-5); }
+.confirm h2 { font-size: var(--fs-4); line-height: var(--lh-4); font-weight: 700; }
+.confirm p { margin-top: var(--s-2); color: var(--ink-2); font-size: var(--fs-2); line-height: var(--lh-2); }
+.confirm .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--s-2); margin-top: var(--s-5); }
+dialog.privacy-dialog { padding: var(--s-5) var(--s-4) var(--s-4); }
+.privacy-dialog h2 { margin: 0 0 var(--s-3); font-size: var(--fs-4); line-height: var(--lh-4); font-weight: 700; }
+.privacy-dialog .pre { flex: 1 1 auto; min-height: 0; max-height: 60vh; overflow: auto; font-size: var(--fs-2); line-height: var(--lh-2); color: var(--ink-2); }
+.privacy-dialog form { margin: var(--s-4) 0 0; text-align: right; }
+
+/* -- Leerer Zustand: Symbol, Satz, ein Button -- */
+.empty { display: flex; flex-direction: column; align-items: center; gap: var(--s-2); padding: var(--s-6) var(--s-4); color: var(--ink-2); font-size: var(--fs-2); line-height: var(--lh-2); text-align: center; }
+.empty > .i { width: 48px; height: 48px; color: var(--ink-3); }
+.empty h3 { color: var(--ink); font-size: var(--fs-3); line-height: var(--lh-3); font-weight: 700; }
+.empty p { max-width: 320px; margin-bottom: var(--s-2); }
+
+/* -- Gefahrenbereich (Tagesabschluss, Löschen, Zurücksetzen): rote Textaktionen mit 44 px Trefferfläche, immer mit Rückfrage -- */
+.danger-zone { display: grid; justify-items: center; gap: var(--s-1); margin-top: var(--s-6); text-align: center; }
+.danger-zone .link { min-width: 0; max-width: 100%; }
+.danger-zone p, .danger-zone div { margin: 0; }
+
+/* ==== 3 Rahmen (Leiste, Tab-Leiste, Seite) ==== */
+.logo { display: inline-flex; align-items: center; }
+.logo img { display: block; height: 40px; width: auto; }
+.admin-bar { position: sticky; top: 0; z-index: var(--z-bar); display: flex; align-items: center; gap: var(--s-3); height: var(--bar-h); padding: 0 var(--s-2) 0 var(--s-4); background: var(--surface); border-bottom: 1px solid var(--line); }
+.admin-bar .logo img { height: 28px; max-width: 140px; object-fit: contain; object-position: left center; }
+.logo-link { flex: none; display: inline-flex; align-items: center; min-height: var(--tap); text-decoration: none; }
+.bar-end { flex: none; margin-left: auto; display: flex; align-items: center; gap: var(--s-1); }
+.bar-end .btn.quiet { color: var(--ink-2); }
+.bar-settings { position: relative; }
+.bar-settings.active { color: var(--ink); background: var(--surface-2); }
+.bar-settings .dot-badge { position: absolute; top: 9px; right: 9px; width: 9px; height: 9px; box-sizing: content-box; border-radius: 50%; background: var(--st-called); border: 2px solid var(--surface); }
+.bar-settings.active .dot-badge { border-color: var(--surface-2); }
+.tabs { display: none; }
+@media (min-width: 720px) {
+  .admin-bar { gap: var(--s-2); padding: 0 var(--s-4) 0 var(--s-5); }
+  /* Tabs (Text, kein Pillen-Hintergrund): aktiv = Tinte + 3 px Unterstrich. Die Leiste hat nie zwei Zeilen und läuft nie über:
+     reicht der Platz nicht (schmales Tablet, breite Schrift), scrollt nur der Tab-Streifen. */
+  .tabs { display: flex; align-self: stretch; flex: 0 1 auto; min-width: 0; margin-left: var(--s-2); overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+  .tabs a { position: relative; display: flex; align-items: center; flex: none; padding: 0 var(--s-2); color: var(--ink-2); font-size: var(--fs-2); line-height: var(--lh-2); font-weight: 600; white-space: nowrap; text-decoration: none; }
+  .tabs a.active { color: var(--ink); }
+  .tabs a.active::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--ink); }   /* Tinte statt Akzent: der Indikator bleibt bei jeder Marke ≥ 3:1 */
+  .bar-kiosk.has-lbl { width: var(--tap); padding: 0; }                          /* neben den Tabs ist nur Platz für das Symbol */
+  .bar-kiosk.has-lbl .lbl { display: none; }
+}
+@media (min-width: 1000px) {
+  .admin-bar { gap: var(--s-3); }
+  .tabs a { padding: 0 var(--s-3); }
+  .bar-kiosk.has-lbl { width: auto; padding: 0 var(--s-4); }                     /* ab 1000 px ist neben den Tabs Platz für die Beschriftung */
+  .bar-kiosk.has-lbl .lbl { display: inline; }
+}
+/* Verbindung zum Stand-Laptop (nur im Hub-Betrieb): ruhig im Normalfall – grüner Punkt; laut im Problemfall – roter Punkt + „Offline“ */
+.hub-state { display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2); min-width: var(--tap); min-height: var(--tap); padding: 0 var(--s-2); color: var(--ink-2); font-size: var(--fs-1); line-height: var(--lh-1); font-weight: 600; text-decoration: none; white-space: nowrap; }
+.hub-state::before { content: ""; flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--st-free); }
+.hub-state.offline { color: var(--st-late-ink); }
+.hub-state.offline::before { background: var(--st-late); }
+.hub-wide { display: none; }          /* „Verbunden · 192.168.8.100:8470“ / „Keine Verbindung zum Laptop“ erst ab 1280 px */
+.hub-state.online .hub-narrow { display: none; }     /* online: nur Punkt, Wort „Verbunden“ erst ab 1000 px */
+@media (min-width: 1000px) { .hub-state.online .hub-narrow { display: inline; } }
+@media (min-width: 1280px) { .hub-state .hub-wide { display: inline; } .hub-state .hub-narrow, .hub-state.online .hub-narrow { display: none; } }
+#conn-banner:not(:empty) { margin-bottom: var(--s-3); }
+#conn-banner .banner { margin-bottom: 0; }
+/* Tab-Leiste unten (< 720 px): Start · Warteschlange · Fahrzeuge · Interessenten */
+.tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: var(--z-bar); display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); padding-bottom: env(safe-area-inset-bottom); background: var(--surface); border-top: 1px solid var(--line); }
+.tabbar a { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s-0); height: var(--tabbar-h); padding: 0 var(--s-0); color: var(--ink-2); font-size: var(--fs-0); line-height: var(--lh-0); font-weight: 600; text-decoration: none; }
+.tabbar a span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tabbar a.active { color: var(--ink); }
+.tabbar a.active::before { content: ""; position: absolute; top: -1px; left: 26%; right: 26%; height: 3px; border-radius: 0 0 var(--r-0) var(--r-0); background: var(--ink); }
+@media (min-width: 720px) { .tabbar { display: none; } }
+/* Seite: Team 720 px (Warteschlange kann mit .wide breiter werden), Kunden 560 px */
+.admin-main { max-width: 720px; margin: 0 auto; padding: var(--s-4) var(--s-4) calc(var(--tabbar-h) + var(--s-6) + env(safe-area-inset-bottom)); }
+.admin-main.wide { max-width: 1120px; }
+@media (min-width: 720px) { .admin-main { padding: var(--s-5) var(--s-5) var(--s-6); } }
+.title { margin: 0; font-size: var(--fs-5); line-height: var(--lh-5); font-weight: 700; letter-spacing: -.01em; }
+.page-head, .title-row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s-1) var(--s-3); min-height: var(--tap); margin: var(--s-2) 0 var(--s-3); }
+.page-head .actions { margin-left: auto; display: flex; align-items: center; gap: var(--s-2); }
+.title-row .count { margin-left: auto; color: var(--ink-2); font-size: var(--fs-2); line-height: var(--lh-2); }
+.title-row a.count { display: inline-flex; align-items: center; gap: var(--s-1); min-height: var(--tap); color: var(--accent-ink); font-weight: 600; text-decoration: none; }
+
+/* ==== 4 Screens: Start, Verbinden, Login ==== */
+/* -- Start: Kopf – Datum und Status als Text, der Status mit 8-px-Punkt (keine Pille) -- */
+.admin-main .start-meta { display: flex; flex-direction: column; align-items: flex-start; margin: 0; }
+.start-status { display: inline-flex; align-items: center; gap: var(--s-2); color: var(--ink-2); }
+.start-status::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--field); }
+.start-status.online { color: var(--st-free-ink); }
+.start-status.online::before { background: var(--st-free); }
+.start-status.offline { color: var(--st-late-ink); }
+.start-status.offline::before { background: var(--st-late); }
+.start-section { margin-top: var(--s-5); }
+.start-section > h2 { margin: 0 0 var(--s-2); color: var(--ink-3); font-size: var(--fs-1); line-height: var(--lh-1); font-weight: 600; }
+.start-section ul { list-style: none; }
+
+/* -- Kacheln: Symbol-Quadrat, Name (der Link deckt per ::after die ganze Fläche ab), Zeile darunter, Pfeil. Kunden-Gruppe = Karten (ul.tiles),
+   Standteam = Zeilen (ul.list > li.tile.row). Zahlen stehen als Text in der Zeile (.fig), nicht als Kennzahlkachel. -- */
+.tile { position: relative; display: flex; align-items: center; gap: var(--s-3); min-width: 0; }
+.tile:active { background: var(--surface-2); }
+@media (hover: hover) { .tile:hover { background: var(--surface-2); } .tile.customer:hover { background: color-mix(in srgb, var(--accent) 16%, var(--surface)); } }
+.tile:has(.tile-link:focus-visible) { outline: 3px solid var(--accent-ink); outline-offset: 2px; }
+.list > .tile:has(.tile-link:focus-visible) { outline-offset: calc(-1 * var(--s-1)); }      /* in der Liste (overflow) liegt der Ring innen */
+.tile-ic { flex: none; display: grid; place-items: center; width: var(--num-sm); height: var(--num-sm); border-radius: var(--r-1); background: var(--surface-2); color: var(--ink-2); }
+.tile-body { flex: 1; min-width: 0; }
+.tile-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--s-2); }
+.tile-name { margin: 0; font-size: var(--fs-3); line-height: var(--lh-3); font-weight: 600; overflow-wrap: anywhere; }
+.tile-link { color: inherit; text-decoration: none; }
+.tile-link::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+.tile-link:focus-visible { outline: none; }
+.tile-sub, .tile-line { margin: 0; color: var(--ink-2); font-size: var(--fs-2); line-height: var(--lh-2); }
+.tile .tag { flex: none; }
+.tile .chev { flex: none; color: var(--ink-3); }
+.fig { display: inline-block; white-space: nowrap; }
+.fig small { color: inherit; font-size: inherit; }
+.tile-line strong { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+.tile-line [data-fact] { white-space: nowrap; }                                    /* bricht nur zwischen den Fakten um, nie mitten in „Stand-PIN gesetzt“ */
+.tile-line [data-fact] strong { font-weight: 600; }
+/* Kunden-Kacheln: hier wird das Tablet weitergereicht – Tönung statt dickem Akzentrand, Symbol im Akzent-Quadrat */
+.tiles { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-3); }
+@media (min-width: 720px) {
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tiles > .tile:last-child:nth-child(odd) { grid-column: 1 / -1; }               /* ungerade Zahl: die letzte Kachel über die volle Breite */
+}
+.tiles > .tile { gap: var(--s-4); min-height: 88px; padding: var(--s-4); border: 1px solid var(--line); border-radius: var(--r-2); background: var(--surface); }
+.tiles > .tile .tile-ic { width: var(--num); height: var(--num); }
+.tiles > .tile .tile-ic .i { width: var(--ic-lg); height: var(--ic-lg); }
+.tile.customer { background: var(--accent-tint); border-color: color-mix(in srgb, var(--accent) 55%, var(--surface)); }
+.tile.customer .tile-ic { background: var(--accent); color: var(--on-accent); }
+.tile.customer .tile-name { font-size: var(--fs-4); line-height: var(--lh-4); font-weight: 700; }
+.tile.customer:active { background: color-mix(in srgb, var(--accent) 22%, var(--surface)); }
+/* Ausgeschaltetes Modul: gestrichelt, Titel grau; führt in die Einstellungen */
+.tile.off .tile-name, .tile.off .tile-sub { color: var(--ink-3); }
+.tile.off .tile-ic { background: var(--surface-2); color: var(--ink-3); }
+.tiles > .tile.off { border-style: dashed; border-color: var(--line-strong); background: var(--bg); }
+.list > .tile.off { border-top-style: dashed; border-top-color: var(--line-strong); background: var(--bg); }
+.list > .tile.off:first-child { border-top: 0; }
+/* EIN Hinweis unter der Kunden-Gruppe: Admin wird gesperrt bzw. bleibt offen (Link 44 px hoch) */
+.group-note { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--s-2); min-height: var(--tap); margin: var(--s-1) 0 0; color: var(--ink-3); font-size: var(--fs-1); line-height: var(--lh-1); }
+.group-note .i { flex: none; }
+.group-note a { display: inline-flex; align-items: center; min-height: var(--tap); color: var(--accent-ink); font-weight: 600; }
+/* Einmaliger Hinweis „App installieren“ (schließbar, screens/start.js): Symbol-Quadrat, Satz mit Knopf zur Anleitung, Schließen rechts. Bewusst kein .banner – das gebündelte
+   Einrichtungs-Banner ist der eine Hinweis dieser Seite. */
+.install-note { display: flex; align-items: flex-start; gap: var(--s-3); margin: var(--s-4) 0 0; padding: var(--s-3) var(--s-2) var(--s-3) var(--s-4); border: 1px solid var(--line); border-radius: var(--r-2); background: var(--surface); }
+.install-note-ic { flex: none; display: grid; place-items: center; width: var(--num-sm); height: var(--num-sm); border-radius: var(--r-1); background: var(--surface-2); color: var(--ink-2); }
+.install-note-body { flex: 1; min-width: 0; }
+.install-note-text { margin: var(--s-2) 0 var(--s-3); color: var(--ink); font-size: var(--fs-2); line-height: var(--lh-2); }
+.install-note > .btn.quiet { color: var(--ink-2); }
+/* Weitere Geräte verbinden: lokal = Symbol + Satz + „So geht’s“; Hub = QR (160) + Link-Feld + Kopieren; Handy: QR mittig über dem Text */
+.devices { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: var(--s-4) var(--s-5); }
+.devices.local { flex-wrap: nowrap; justify-content: flex-start; align-items: flex-start; gap: var(--s-3); }
+.devices.local > .i { margin-top: var(--s-0); color: var(--ink-2); }
+.devices-qr { flex: none; width: 160px; height: 160px; padding: var(--s-2); border: 1px solid var(--line); border-radius: var(--r-1); background: var(--white); }
+.devices-text { flex: 1 1 240px; min-width: 0; }
+.devices-title { margin: 0; font-size: var(--fs-3); line-height: var(--lh-3); font-weight: 600; }
+.devices-note { margin: var(--s-1) 0 var(--s-3); color: var(--ink-2); font-size: var(--fs-2); line-height: var(--lh-2); }
+.devices-hint { margin: var(--s-3) 0 0; color: var(--ink-3); font-size: var(--fs-1); line-height: var(--lh-1); }
+.link-row { display: flex; align-items: center; gap: var(--s-2); }
+input.link-field { flex: 1 1 auto; width: auto; min-width: 0; min-height: var(--tap); padding: 0 var(--s-2); font-family: var(--mono); font-size: var(--fs-2); }
+#pin { scroll-margin-top: calc(var(--bar-h) + var(--s-4)); }      /* Sprung ?zu=pin: Karte nicht unter der klebenden Leiste verstecken */
+#rechtliches { scroll-margin-top: calc(var(--bar-h) + var(--s-4)); }
+
+/* -- PIN-Abfrage (Login, Verbinden): zentrierte Karte ≤ 400 px – Logo, Symbol im Quadrat, Titel, Satz, großes Feld, Fehler UNTER dem Feld,
+   ein Button. Keine Leiste, kein Hero. -- */
+.page.gate { padding-top: max(var(--s-6), 7vh); }
+.gate .brand { min-height: 0; margin-bottom: var(--s-6); }
+.gate-ic { display: grid; place-items: center; width: 56px; height: 56px; margin: 0 auto var(--s-4); border-radius: var(--r-2); background: var(--surface-2); color: var(--ink-2); }
+.gate .title { margin: 0; }
+.gate-sub { margin: var(--s-2) 0 var(--s-5); color: var(--ink-2); font-size: var(--fs-2); line-height: var(--lh-2); text-wrap: balance; }
+.gate-form .field { margin-bottom: 0; }
+.gate-form .btn { margin-top: var(--s-4); }
+.gate .errmsg { justify-content: center; margin-top: var(--s-2); }
+.gate-alt { margin: var(--s-4) 0 0; }
+.gate-addr { margin: var(--s-4) 0 0; color: var(--ink-3); font-size: var(--fs-1); line-height: var(--lh-1); overflow-wrap: anywhere; }
+.pin-input, #pin-form input[name=pin], #connect-form input[name=pin] { min-height: 60px; text-align: center; letter-spacing: .5em; font-size: var(--fs-pin); }
+
+/* ==== 5 Screen: Warteschlange ==== */
+/* Seite: eine Spalte, ab 1000 px zwei (links Fahrzeuge · Überfällig · Aufgerufen · Unterwegs, rechts Wartend · Abgeschlossen · Fuß).
+   Grid-Kinder brauchen min-width: 0, sonst streckt die scrollende Fahrzeug-Leiste die ganze Spalte (ui-review Anhang A.1). */
+.cols { display: grid; grid-template-columns: minmax(0, 1fr); }
+.cols > * { min-width: 0; }
+.cols > :first-child > :first-child { margin-top: 0; }
+@media (min-width: 1000px) {
+  .cols { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: var(--s-6); align-items: start; }
+  .cols.solo { grid-template-columns: minmax(0, 720px); }               /* ohne linke Spalte (kein Tracking, nichts in Arbeit): nur die Warteliste, 720 px wie die anderen Team-Screens */
+  .cols > :last-child > :first-child { margin-top: 0; }
+}
+.q-sec, .q-done, .q-foot { margin-top: var(--s-5); }
+.q-sec > .sec { margin: 0 0 var(--s-2); }
+.sec.alert h2, .sec.alert .n { color: var(--st-late-ink); }          /* Überfällig: Titel in Zustandsfarbe (Wort + Rand der Karte tragen den Zustand mit) */
+
+/* Fahrzeug-Leiste: Beschriftung „Fahrzeuge“ + Zähler, darunter je Fahrzeug Kürzel · Zustand / Modell Farbe, nach Kürzel sortiert */
+.vlabel { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-2); margin: 0 0 var(--s-2); color: var(--ink-3); font-size: var(--fs-1); line-height: var(--lh-1); font-weight: 600; }
+.vlabel .aside { font-weight: 400; }
+.vlabel b { color: var(--ink-2); font-weight: 600; font-variant-numeric: tabular-nums; }
+.vstrip { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(112px, 1fr); gap: var(--s-2); min-width: 0; overflow-x: auto; scroll-snap-type: x proximity; padding: var(--s-0) 0; scrollbar-width: none; }
+.vitem { scroll-snap-align: start; display: flex; flex-direction: column; justify-content: center; gap: var(--s-0); min-width: 0; min-height: 64px; padding: var(--s-2) var(--s-3); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-1); color: var(--ink); text-decoration: none; }
+.vitem:active { background: var(--surface-2); }
+.vitem .t { display: flex; align-items: center; gap: var(--s-2); min-width: 0; white-space: nowrap; }
+.vitem .t b { font-size: var(--fs-3); line-height: var(--lh-3); font-weight: 700; }
+.vitem .status { min-width: 0; font-variant-numeric: tabular-nums; }
+.vitem .cut { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.vitem .m { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-3); font-size: var(--fs-1); line-height: var(--lh-1); }
+.vitem.free { border-color: color-mix(in srgb, var(--st-free) 40%, var(--surface)); }
+.vitem.late { background: var(--st-late-tint); border-color: var(--st-late); }
+.vitem.late .m { color: var(--st-late-ink); }
+@media (min-width: 720px) { .vstrip { grid-auto-columns: minmax(150px, 1fr); } }
+
+/* Karten (Überfällig, Aufgerufen, Unterwegs, Als Nächstes): Kopfzeile Nummer · Name/Meta · Zeit, darunter die Aktionen */
+.q-card { display: flex; flex-direction: column; }                   /* gemeinsam mit den Fahrzeug-Karten (v-card) */
+.row.q-card { flex-direction: row; }                                  /* Zeilen tragen q-card nur als Kennung (#q-<id>, Tests) */
+.q-top { display: flex; align-items: center; gap: var(--s-3); }
+.q-top .q-who { flex: 1; min-width: 0; }
+.q-top .q-name { margin: 0; font-size: var(--fs-3); line-height: var(--lh-3); font-weight: 600; overflow-wrap: anywhere; }   /* Name bricht um, wird nie gekürzt (F2) */
+.q-top .q-meta { display: flex; align-items: flex-start; gap: var(--s-1); margin: 0; color: var(--ink-2); font-size: var(--fs-2); line-height: var(--lh-2); overflow-wrap: anywhere; }
+.q-top .q-meta > span { min-width: 0; }
+.q-top .q-meta .i { margin-top: var(--s-0); }
+.q-top .q-meta.small { color: var(--ink-3); font-size: var(--fs-1); line-height: var(--lh-1); }
+.q-time { flex: none; display: flex; flex-direction: column; text-align: right; }
+.q-time strong { font-size: var(--fs-4); line-height: var(--lh-4); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.q-time small { color: var(--ink-3); font-size: var(--fs-1); line-height: var(--lh-1); }
+.q-card.late .q-time strong { color: var(--st-late-ink); }
+.q-card.late .q-time small:last-child { color: var(--st-late-ink); font-weight: 600; }
+.next-label { margin: 0 0 var(--s-2); color: var(--live-ink); font-size: var(--fs-1); line-height: var(--lh-1); font-weight: 700; }
+.q-actions, .contact-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); margin-top: var(--s-3); }
+.q-actions form, .contact-row form { margin: 0; }
+.q-actions .btn.grow, .q-actions .q-form.grow { flex: 1 1 150px; min-width: 0; }   /* Hauptaktion nimmt den Platz, Überlauf-Knopf bleibt 44 px */
+.q-actions .q-form { display: flex; }
+.q-actions .q-form .btn { flex: 1; }
+.q-actions .btn.wrap { white-space: normal; padding-top: var(--s-2); padding-bottom: var(--s-2); }   /* „<langer Name> anrufen“ darf umbrechen */
+/* Kontakt-Segment (Anrufen | SMS | WhatsApp): drei gleich breite Zellen. .contact-row kommt auch von der Aktionszeile (Umbruch, Lücken) – hier zurücksetzen.
+   Ist das Segment schmaler als ca. 320 px (Handy 360–385 px), fällt das Symbol weg, damit „WhatsApp“ nie angeschnitten wird (Container-Abfrage, kein weiterer Breakpoint). */
+.seg.contact-row { flex-wrap: nowrap; align-items: stretch; gap: 0; margin-top: var(--s-2); container-type: inline-size; }
+.seg.contact-row > * { gap: var(--s-1); padding: 0 var(--s-1); }
+@container (max-width: 320px) { .seg.contact-row .i { display: none; } }
+.q-sec > .card + .list, .q-sec > .list { margin-top: var(--s-3); }
+
+/* Zeilen (weitere Wartende, Abgeschlossene, Sheet-Aktionen) – Ergänzungen zur Komponente .row */
+.row .grow > .ttl, .row .grow > .desc { display: block; }
+.row .desc.small { color: var(--ink-3); font-size: var(--fs-1); line-height: var(--lh-1); }
+.row .desc strong { color: var(--ink); font-variant-numeric: tabular-nums; }   /* Wartezeit in der Zeile hervorheben */
+.row .tag, .row .btn.icon { flex: none; }
+.row form { margin: 0; }
+button.row { width: 100%; border-right: 0; border-bottom: 0; border-left: 0; background: none; font: inherit; text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button.row:active { background: var(--surface-2); }
+
+/* Aufklapp-Zeilen „Heute abgeschlossen“ und „Weitere … anzeigen“: Pfeil dreht sich, Zustand steht in aria-expanded */
+.disclosure[aria-expanded="true"] > .i:last-child { transform: rotate(180deg); }
+.q-sec > .disclosure { margin-top: var(--s-3); }
+.q-sec > .disclosure + .list { margin-top: var(--s-2); }
+.q-balance { margin: var(--s-2) 0; color: var(--ink-3); font-size: var(--fs-1); line-height: var(--lh-1); }
+.q-balance b { color: var(--ink-2); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* Leerer Zustand in der Wartend-Spalte (daneben läuft anderes): kompakt, ohne Symbol und Knopf – „Tablet weitergeben“ steht im Kopf */
+.card > .empty.compact { padding: var(--s-2) 0; }
+
+/* Fuß: Export (Sheet) und Tagesabschluss (rot, mit Rückfrage) */
+.q-foot { display: grid; gap: var(--s-3); }
+.day-close { display: flex; align-items: center; gap: var(--s-3); margin: 0; }
+.day-close .grow { flex: 1; min-width: 0; }
+.day-close b { display: block; font-size: var(--fs-2); line-height: var(--lh-2); font-weight: 600; }
+.day-close p { margin: 0; color: var(--ink-3); font-size: var(--fs-1); line-height: var(--lh-1); }
+
+/* Sheets: Start, Auffälligkeit, Aktionen, Export, Detail (Gerüst .sheet-h/.sheet-b/.sheet-f in Abschnitt 2) */
+dialog.sheet > form { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; margin: 0; }   /* Formular zwischen Dialog und Kopf/Inhalt/Fuß: Inhalt scrollt, Fuß bleibt */
+.sheet-h .btn.quiet { color: var(--ink-2); }
+.sheet-err:empty { display: none; }                                    /* Fehler (400/409-Äquivalent) als Banner im Sheet statt Toast dahinter */
+.sheet-err .banner { margin: 0 0 var(--s-3); }
+.sheet-b > .sheet-err + .group-lbl { margin-top: 0; }               /* erste Gruppe sitzt oben bündig (die leere Fehlerzeile zählt nicht als Vorgänger) */
+.sheet-b.flush { padding: 0; }
+.sheet-b.flush > .sheet-err:not(:empty) { padding: var(--s-3) var(--s-4) 0; }
+.sheet-b > .list { margin-top: var(--s-4); }
+.sheet-rows > form { border-top: 1px solid var(--line); }               /* Formular-Zeilen sind einzeln gewickelt: die Trennlinie liegt am Formular */
+.sheet-rows > form:first-child { border-top: 0; }
+.sheet-rows > form > .row { border-top: 0; }
+.sheet-rows .row { width: 100%; min-height: 56px; padding: var(--s-2) var(--s-4); font-size: var(--fs-3); line-height: var(--lh-3); font-weight: 600; }
+.sheet-rows .row .i { color: var(--ink-2); }
+.sheet-rows .row.danger, .sheet-rows .row.danger .i { color: var(--st-late-ink); }   /* R7: Löschen rot */
+.q-kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--s-1) var(--s-4); margin: 0; font-size: var(--fs-2); line-height: var(--lh-2); }
+.q-kv dt { color: var(--ink-3); }
+.q-kv dd { margin: 0; text-align: right; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.group-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); margin: var(--s-4) 0 var(--s-3); }   /* unten 12: die 44-px-Trefferfläche des Links reicht nicht in die erste Zeile darunter */
+.group-head .group-lbl { margin: 0; }
+.group-head .btn { margin: calc(-1 * var(--s-2)) calc(-1 * var(--s-3)) calc(-1 * var(--s-2)) 0; }
+.hint.no-checks { margin: var(--s-3) 0 0; }
+.hint.no-checks .btn { margin-left: calc(-1 * var(--s-2)); }
+.choices { display: grid; gap: var(--s-2); }
+.choice .grow { flex: 1; min-width: 0; }
+.choice .ttl { display: block; overflow-wrap: anywhere; }
+.choice .desc { display: block; color: var(--ink-3); font-size: var(--fs-1); line-height: var(--lh-1); font-weight: 400; }
+.choice .desc .i { width: var(--ic-sm); height: var(--ic-sm); margin-right: var(--s-1); vertical-align: -3px; }
+.choice.unterwegs, .choice.ueberfaellig, .choice.gesperrt { background: var(--surface-2); border-style: dashed; }   /* nicht frei: gestrichelt, Grund in Zeile 2 */
+.choice.ueberfaellig .desc { color: var(--st-late-ink); }
+.known { display: flex; align-items: flex-start; gap: var(--s-2); margin: var(--s-3) 0 0; padding: var(--s-3); border-radius: var(--r-1); background: var(--st-called-tint); color: var(--st-called-ink); font-size: var(--fs-2); line-height: var(--lh-2); }
+.known .i { margin-top: var(--s-0); }
+.sheet-switch { border: 1px solid var(--line); border-radius: var(--r-1); }
+.sheet-switch .ttl, .sheet-switch .desc { display: block; }
+.sheet-f .why.done { visibility: hidden; }                              /* Platz bleibt, damit der Fuß nicht springt, wenn alles erledigt ist */
+
+/* Gemeinsam mit Fahrzeuge/Interessenten genutzt, bis diese Screens umgestellt sind (danach hier löschen) */
+.q-head { display: flex; align-items: center; gap: var(--s-3); }
+.q-who { flex: 1; min-width: 0; }
+.q-who h3 { margin: 0; font-size: var(--fs-3); line-height: var(--lh-3); font-weight: 600; white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+.q-who .meta, .q-card .meta { margin: 0; color: var(--ink-2); font-size: var(--fs-2); line-height: var(--lh-2); word-break: normal; overflow-wrap: anywhere; }
+.q-card .meta .i { width: var(--ic-sm); height: var(--ic-sm); margin-right: var(--s-1); vertical-align: -2px; }
+details.end-panel, details.block-panel { display: inline-block; }
+details.end-panel > summary, details.block-panel > summary { cursor: pointer; }
+details.end-panel[open], details.block-panel[open] { display: block; flex-basis: 100%; min-width: 0; max-width: 100%; }
+details.end-panel > form, details.block-panel > form { display: grid; gap: var(--s-3); min-width: 0; max-width: 100%; margin-top: var(--s-3); padding: var(--s-3); border-radius: var(--r-1); background: var(--surface-2); }
+details.end-panel .lbl, details.block-panel .lbl { margin: 0; color: var(--ink-3); font-size: var(--fs-1); line-height: var(--lh-1); }
+details.block-panel .reason-chips { background: var(--surface); border-color: var(--line-strong); }
+details.block-panel .reason-chips .chip.active { background: var(--accent-tint); border-color: var(--accent-ink); color: var(--ink); }
+details.end-panel textarea { min-height: 72px; }
+/* Tabellen (Fahrzeug-Detail „Fahrten heute“): scrollen horizontal, bis die Screens Zeilen nutzen */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r-2); background: var(--surface); }
+.q-table { width: 100%; border-collapse: collapse; font-size: var(--fs-2); line-height: var(--lh-2); }
+.q-table th, .q-table td { padding: var(--s-3); text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.q-table th { color: var(--ink-3); font-size: var(--fs-1); line-height: var(--lh-1); font-weight: 600; }
+.q-table tr:last-child td { border-bottom: 0; }
+.q-table td small { color: var(--ink-3); }
+.row-actions { display: flex; gap: var(--s-1); }
+.row-actions form { margin: 0; }
+.warn-ic { display: inline-flex; vertical-align: middle; color: var(--st-called-ink); }
+
+/* ==== 6 Screens: Kundenseiten (Formular, Anmeldung, Ticket, Danke, Datenschutz) ==== */
+/* Kundenseiten sind das freundliche Register (ui-review.md §5.8): weißer Grund, linksbündig, Logo oben links, große Felder (52 px),
+   „(optional)“ statt Sternen, ruhige Einwilligung, ein fester Button unten (.cta-bar). Ticket und Danke stehen zentriert (.stage).
+   Das Kundenformular ist EIN Formular: Name, Telefon | E-Mail, PLZ, Interessen (zuerst die Probefahrt), Notizen, Einwilligung. */
+.page { max-width: 560px; margin: 0 auto; padding: var(--s-4) var(--s-4) var(--s-6); }
+@media (min-width: 720px) { .page.cust { padding-top: var(--s-6); } }
+.page.center { text-align: center; }
+.page.narrow { max-width: 400px; }
+.page.prose { max-width: 640px; }
+.brand { display: flex; align-items: center; justify-content: flex-start; min-height: var(--tap); margin: 0 0 var(--s-5); }
+.page.center .brand { justify-content: center; }
+.brand .logo img { height: 32px; max-width: 100%; }
+.cust h1 { margin: 0; font-size: var(--fs-6); line-height: var(--lh-6); font-weight: 700; letter-spacing: -.015em; }
+.cust .lead { margin: var(--s-2) 0 var(--s-5); color: var(--ink-2); font-size: var(--fs-3); line-height: var(--lh-3); }
+/* Felder: Label oben, Eingabe 52 px; Telefon | E-Mail nebeneinander ab 560 px (darunter eine gemeinsame Zeile: „eines von beiden genügt“) */
+.lead-form { text-align: left; }
+.lead-form .field input, .lead-form .field textarea { min-height: var(--tap-lg); }
+.lead-form .field textarea { min-height: 96px; }
+.fields-2 { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 var(--s-3); }
+@media (min-width: 560px) { .fields-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.contact-pair { row-gap: var(--s-4); }
+.contact-pair > .field { margin-bottom: 0; }
+.contact-pair + p { margin: var(--s-1) 0 var(--s-4); }          /* Hilfe oder Fehler gehört zum Paar, nicht zu einem Feld */
+/* Optionen: Auswahlzeilen mit Checkbox, 56 px; zwei Spalten erst, sobald jede Zeile mindestens 200 px breit wird (Tablet) – ein Wort wie
+   „Kaufinteresse“ bricht so nie mitten im Wort um; Handys: eine Spalte; Feldrahmen ≥ 3:1 */
+.opt-picks { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--s-2); }
+.opt-pick { min-height: 56px; border-color: var(--field); }
+.opt-pick > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+.opt-picks.invalid .opt-pick { border-color: var(--danger); }
+.opt-pick:has(input:checked) { border-color: var(--accent-ink); }
+/* Probefahrt-Option (immer die erste): volle Breite, Titel · Hinweis · Wartezeit in EINER Zeile mit Uhr-Symbol (live); das Kästchen
+   steht auf der Titelzeile, nicht mittig in der dreizeiligen Fläche */
+.opt-queue { grid-column: 1 / -1; align-items: flex-start; }
+.opt-text { display: grid; }
+.opt-ttl { font-size: var(--fs-3); line-height: var(--lh-3); font-weight: 600; }
+.opt-sub { color: var(--ink-3); font-size: var(--fs-1); line-height: var(--lh-1); font-weight: 400; }
+.queue-info { display: flex; align-items: flex-start; gap: var(--s-1); margin-top: var(--s-1); color: var(--ink-2); }
+.queue-info > .i { margin-top: var(--s-0); color: var(--ink-3); }
+.queue-info > span { min-width: 0; }
+.queue-info b { color: var(--ink); font-weight: 700; }
+/* Nur die Probefahrt (Interessenten aus): Hinweis und Wartezeit unter dem Untertitel, ohne Auswahlzeile */
+.alone-note { margin: 0 0 var(--s-5); color: var(--ink-2); font-size: var(--fs-2); line-height: var(--lh-2); }
+.alone-note p { margin: 0; }
+.alone-note .queue-info { gap: var(--s-2); margin-top: var(--s-1); font-size: var(--fs-2); line-height: var(--lh-2); }
+/* Rechtstext und Datenschutz-Link (öffnet den Dialog; 13 px Text, 44 px Trefferfläche) */
+.legal { margin: var(--s-3) 0 0; color: var(--ink-3); font-size: var(--fs-1); line-height: var(--lh-1); }
+.legal-links { margin: var(--s-1) 0 0; }
+.legal-links .link { justify-content: flex-start; padding: 0; font-size: var(--fs-1); font-weight: 400; text-decoration: underline; }
+/* Fester Abschick-Bereich: klebt unten am Bildschirm, solange das Formular länger ist; Verlauf in Weiß (die obersten 24 px blenden aus,
+   darunter ist die Fläche weiß). Der Zugang für das Standteam steht darunter, am Seitenende – nicht im festen Bereich. */
+.cta-bar { position: sticky; bottom: 0; margin: 0 calc(-1 * var(--s-4)); padding: var(--s-6) var(--s-4) calc(var(--s-3) + env(safe-area-inset-bottom)); background: linear-gradient(to bottom, transparent, var(--surface) var(--s-5)); }
+.kiosk-admin-link { margin: var(--s-5) 0 0; text-align: center; }
+.lead-form + .kiosk-admin-link { margin-top: 0; }
+.kiosk-admin-link a { display: inline-flex; align-items: center; min-height: var(--tap); padding: 0 var(--s-3); color: var(--ink-3); font-size: var(--fs-1); line-height: var(--lh-1); text-decoration: none; }
+.kiosk-admin-link a:hover, .kiosk-admin-link a:focus-visible { text-decoration: underline; }
+/* Ticket und Danke: vertikal zentriert, Mitarbeiter-Zugang unten */
+.stage { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; }
+.stage-body { margin: auto 0; padding: var(--s-5) 0; }
+.stage .kiosk-admin-link { margin-top: 0; }
+.stage .lead { max-width: 420px; margin: var(--s-2) auto var(--s-5); text-wrap: balance; }
+.stage .count { margin: var(--s-3) 0 0; color: var(--ink-3); font-size: var(--fs-1); line-height: var(--lh-1); }
+.ticket-for { margin: 0; color: var(--ink-2); font-size: var(--fs-4); line-height: var(--lh-4); }
+.ticket-number { margin: var(--s-2) 0; color: var(--accent-ink); font-size: var(--fs-ticket); line-height: 1; font-weight: 700; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.ticket-note { max-width: 420px; margin: 0 auto var(--s-5); color: var(--ink-2); font-size: var(--fs-3); line-height: var(--lh-3); text-wrap: balance; }
+.ticket-eta { margin: 0 auto var(--s-3); color: var(--ink); font-size: var(--fs-3); line-height: var(--lh-3); font-weight: 600; }   /* Position und Wartezeit auf dem Ticket */
+.ticket-extra { display: block; margin-top: var(--s-2); }                        /* „Ihre Interessen haben wir notiert.“ */
+.check-circle { display: grid; place-items: center; width: 88px; height: 88px; margin: 0 auto var(--s-4); border-radius: 50%; background: var(--accent-tint); color: var(--accent-ink); }
+.check-circle .i { width: 48px; height: 48px; stroke-width: 2; }
+/* Datenschutz-Seite: linksbündige Prosa */
+.page.prose h1 { margin: 0 0 var(--s-3); font-size: var(--fs-5); line-height: var(--lh-5); font-weight: 700; }
+.page.prose h2 { margin: var(--s-5) 0 var(--s-2); font-size: var(--fs-4); line-height: var(--lh-4); font-weight: 700; }
+.page.prose .pre { color: var(--ink-2); font-size: var(--fs-3); line-height: calc(var(--lh-3) + var(--s-0)); }
+.btn.back { margin-left: calc(-1 * var(--s-3)); }
+
+/* ==== 7 Screen: Fahrzeuge ==== */
+/* Liste: eine Karte je Fahrzeug. Der Name ist der Link und deckt per ::after die ganze Karte ab (wie die Start-Kacheln), Knöpfe
+   liegen darüber. Zustand = .status (Wort + Punkt, gesperrt mit Schloss), Nummer neutral, unterwegs --live, überfällig rot. */
+.v-card { position: relative; }
+.v-card:has(.v-link:focus-visible) { outline: 3px solid var(--accent-ink); outline-offset: 2px; }
+.v-card:has(.v-link:active) { background: var(--surface-2); }
+.v-top { display: flex; align-items: center; gap: var(--s-3); }
+.v-who { flex: 1; min-width: 0; }
+.v-name { margin: 0; font-size: var(--fs-3); line-height: var(--lh-3); font-weight: 600; overflow-wrap: anywhere; }
+.v-link { color: inherit; text-decoration: none; }
+.v-link::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+.v-link:focus-visible { outline: none; }
+.v-meta { margin: 0; color: var(--ink-3); font-size: var(--fs-1); line-height: var(--lh-1); overflow-wrap: anywhere; }
+.v-state { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-1) var(--s-2); margin: var(--s-1) 0 0; }
+.v-top > .chev { color: var(--ink-3); }
+.v-today { margin: var(--s-3) 0 0; color: var(--ink-3); font-size: var(--fs-1); line-height: var(--lh-1); }
+.v-card .tag .i, .v-drives .tag .i { width: var(--ic-sm); height: var(--ic-sm); }
+/* Aktionen: genau eine Hauptaktion je Zustand; das Formular teilt sich die Zeile mit „Zur Fahrt“ bzw. „Anrufen“ */
+.v-actions { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-3); }
+.v-actions > * { position: relative; z-index: 1; }
+.v-actions > form { flex: 1 1 150px; margin: 0; }
+.v-actions > .btn.block { flex: 1 1 100%; }
+/* Aufklapp-Zeilen (<details class="v-fold"> mit summary.disclosure): Archiv, Behoben, Stammdaten, Vorschäden */
+.v-fold[open] > summary > .i:last-child { transform: rotate(180deg); }
+.v-fold > .list, .v-fold > .card { margin-top: var(--s-2); }
+.v-resolved { margin-top: var(--s-2); }
+.v-edit { margin-top: var(--s-5); }
+#v-more > * { margin-top: var(--s-5); }
+.v-arow:active { background: var(--surface-2); }
+.v-sub { color: var(--ink-3); font-size: var(--fs-1); line-height: var(--lh-1); overflow-wrap: anywhere; }
+.v-sub a { position: relative; color: var(--accent-ink); font-weight: 600; text-decoration: underline; }
+.v-sub a::after { content: ""; position: absolute; inset: calc(-1 * var(--s-3)) calc(-1 * var(--s-1)); }   /* Trefferfläche ≥ 44 px, Zeilenhöhe bleibt */
+
+/* Detail: Zurück-Link, Kopf (Nummer · Modell · Meta · Zustand), Aktionen zuerst, dann Schäden, Fahrten heute, Stammdaten, rote Aktionen */
+.v-back { display: flex; width: fit-content; margin-left: calc(-1 * var(--s-3)); }
+.v-head { display: flex; align-items: flex-start; gap: var(--s-3); margin: var(--s-2) 0 var(--s-4); }
+.v-head .title { overflow-wrap: anywhere; }
+.v-head .v-meta { margin-top: var(--s-1); }
+.v-drive { margin: var(--s-1) 0 0; color: var(--ink-2); font-size: var(--fs-2); line-height: var(--lh-2); }
+.v-actions-head { margin: 0 0 var(--s-2); }
+.v-damage { flex-wrap: wrap; }                                           /* schmal (oder breite Schrift): die Knöpfe rutschen unter den Text */
+.v-damage .grow { flex: 1 1 160px; }
+.v-damage > .btn:not(.icon) { margin-left: auto; }
+.v-damage .ttl { font-size: var(--fs-2); line-height: var(--lh-2); }
+.v-damage.resolved .ttl { color: var(--ink-3); }
+.btn.quiet.v-del { color: var(--st-late-ink); }                          /* R7: Löschen rot, mit Rückfrage */
+.v-none { min-height: var(--tap); color: var(--ink-3); font-size: var(--fs-2); line-height: var(--lh-2); }
+.v-add { flex-wrap: wrap; gap: var(--s-2); }
+.v-add input { flex: 1 1 160px; width: auto; min-width: 0; }
+.v-add .btn { flex: none; margin-left: auto; }
+.v-more > .row { width: 100%; background: none; border: 0; border-top: 1px solid var(--line); font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.v-more > .row:first-child { border-top: 0; }
+.v-more > .row:active { background: var(--surface-2); }
+.v-more > .row.danger { color: var(--st-late-ink); }                     /* R7: Archivieren/Löschen rot, mit Rückfrage */
+.v-more > .row .ttl { font-size: var(--fs-2); line-height: var(--lh-2); }
+@media (hover: hover) { .v-more > .row:hover, .v-arow:hover { background: var(--surface-2); } }
+
+/* Formular (Neu und Stammdaten): Farb-Schnellwahl unter dem Textfeld, Gründe im Sperr-Sheet */
+.v-colors, .v-reasons { position: relative; }                          /* hält die versteckten Radios im Segment (sonst Seitenüberlauf) */
+.v-colors { flex-wrap: wrap; overflow: visible; margin-top: var(--s-2); }   /* sieben Farben: umbrechen statt scrollen, damit alle sichtbar sind */
+.v-reasons { margin: 0 0 var(--s-4); }
+.v-reason { margin: 0; }
+#block-sheet .sheet-h .btn { color: var(--ink-2); }           /* Schließen in Tinte statt Akzent */
+.v-edit .vehicle-form > .btn { margin-top: var(--s-4); }
+.v-fold-body > .field:last-child { margin-bottom: 0; }
+.vehicle-form > .v-fold { margin-bottom: var(--s-2); }
+/* „Neu“ ist eine Formularseite: die Tab-Leiste weicht, damit der feste Fuß (.sticky-save, Abschnitt 9) unten sitzt; der Toast bleibt darüber */
+body:has(.vehicle-new) .tabbar { display: none; }
+body:has(.vehicle-new) .admin-main { padding-bottom: var(--s-4); }
+.vehicle-new .sticky-save { bottom: 0; padding-bottom: calc(var(--s-3) + env(safe-area-inset-bottom)); }
+body:has(.vehicle-new) #app-flash { bottom: calc(var(--tap-lg) + 3 * var(--s-3) + env(safe-area-inset-bottom)); }
+@media (min-width: 720px) { body:has(.vehicle-new) #app-flash { bottom: calc(var(--tap-lg) + 3 * var(--s-3)); } }
+
+/* bleibt, bis leads.js (Abschnitt 8) umgestellt ist */
+.card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--s-3); margin-bottom: var(--s-2); }
+.card-head > div:first-child { flex: 1 1 auto; min-width: 0; }
+.card-head h2 { font-size: var(--fs-3); line-height: var(--lh-3); font-weight: 600; overflow-wrap: anywhere; }
+.card-foot { display: flex; justify-content: flex-end; margin: var(--s-2) 0 0; }
+
+/* ==== 8 Screen: Interessenten ==== */
+.search { margin: 0 0 var(--s-3); }
+.lead-filter { margin: 0 0 var(--s-4); }
+.lead-filter .n { color: var(--ink-3); }                       /* Zähler im Filter: Text, keine Pille */
+/* Karte: Name 17/600 + „…“ · Interessen und Zeit als Text · Kontakt als markierbarer Text · Notiz als Zitat · Segment [E-Mail | Anrufen] */
+.lead-top { display: flex; align-items: flex-start; gap: var(--s-2); }
+.lead-who { flex: 1; min-width: 0; }
+.lead-who h2 { margin: 0; font-size: var(--fs-3); line-height: var(--lh-3); font-weight: 600; overflow-wrap: anywhere; }
+.lead-meta { margin: 0; color: var(--ink-3); font-size: var(--fs-1); line-height: var(--lh-1); overflow-wrap: anywhere; }
+.lead-top > .btn.icon { margin: calc(-1 * var(--s-2)) calc(-1 * var(--s-2)) 0 0; }
+.lead-contact { margin: var(--s-2) 0 0; color: var(--ink-3); font-size: var(--fs-1); line-height: var(--lh-1); overflow-wrap: anywhere; }
+.lead-note { margin: var(--s-3) 0 0; padding-left: var(--s-3); border-left: 3px solid var(--line-strong); color: var(--ink-2); font-size: var(--fs-2); line-height: var(--lh-2); white-space: pre-wrap; overflow-wrap: anywhere; }
+.lead-actions { margin-top: var(--s-3); }
+/* Zeilen in Sheets (Export, Aktionen): ganze Zeile tippbar, Symbol links, Titel + Satz; Löschen in Rot */
+.row.act { width: 100%; min-height: 56px; border: 0; border-top: 1px solid var(--line); background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.row.act:first-child { border-top: 0; }
+.row.act:active { background: var(--surface-2); }
+.row.act:focus-visible { outline-offset: calc(-1 * var(--s-1)); }                 /* in der Liste (overflow) liegt der Ring innen */
+@media (hover: hover) { .row.act:hover { background: var(--surface-2); } }
+.row.act .ttl, .row.act .desc { display: block; }
+.row.act > .i { color: var(--ink-2); }
+.row.act.danger .ttl, .row.act.danger > .i { color: var(--st-late-ink); }
+/* geteilt: queue.js und vehicles.js nutzen .meta und .notes weiter */
+.meta { margin: 0; color: var(--ink-2); font-size: var(--fs-2); line-height: var(--lh-2); overflow-wrap: anywhere; }
+.notes { margin: var(--s-3) 0 0; padding: var(--s-2) var(--s-3); background: var(--surface-2); border-radius: var(--r-1); color: var(--ink-2); font-size: var(--fs-2); line-height: var(--lh-2); white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* ==== 9 Screen: Einstellungen ==== */
+/* Gruppiert statt einer langen Liste: Gruppen-Überschrift (.sec.small) → Karten (.settings-card, fieldset mit legend), Schalterliste
+   (.s-mod) und Aufklapp-Zeilen (.s-fold) untereinander; ein Formular (#settings-form) mit festem Fuß (.sticky-save). */
+.s-group:first-child > .sec { margin-top: var(--s-2); }
+.s-stack { display: grid; gap: var(--s-3); }
+.settings-card { position: relative; min-width: 0; margin: 0; padding: var(--s-4); border: 1px solid var(--line); border-radius: var(--r-2); background: var(--surface); }
+.settings-card > legend { float: left; width: 100%; padding: 0; margin: 0 0 var(--s-2); font-size: var(--fs-3); line-height: var(--lh-3); font-weight: 700; }   /* Titel IN der Karte statt auf dem Rahmen */
+.settings-card > legend ~ * { clear: both; }
+.settings-card > .field:last-child { margin-bottom: 0; }
+.settings-card > .help { margin-top: 0; margin-bottom: var(--s-2); }
+.settings-card > .sub { margin-bottom: var(--s-2); }
+.settings-card, .s-fold { scroll-margin-top: calc(var(--bar-h) + var(--s-4)); }   /* Sprung ?zu=…: Karte nicht unter der klebenden Leiste verstecken */
+.s-state { position: absolute; top: var(--s-4); right: var(--s-4); display: flex; align-items: center; min-height: var(--lh-3); }
+.s-lead { margin-bottom: var(--s-3); }
+/* Lizenz: Eckdaten als Liste (Bezeichnung grau, Wert daneben), darunter Feld und Fehlerkasten für einen neuen Code (Abschnitt 12) */
+.lic-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--s-1) var(--s-4); margin: 0 0 var(--s-4); font-size: var(--fs-2); line-height: var(--lh-2); }
+.lic-facts dt { color: var(--ink-3); }
+.lic-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.s-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 var(--s-3); }
+@media (max-width: 359px) { .s-pair { grid-template-columns: minmax(0, 1fr); } }
+.s-pair:last-child .field { margin-bottom: 0; }
+.s-pair + .btn { margin-top: 0; }
+.s-count { white-space: nowrap; }                                         /* Zahl und Wort bleiben zusammen */
+.s-actions { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-3); }
+.s-actions > .btn { flex: 1 1 auto; }
+.settings-card .install-hint { margin-top: var(--s-3); }
+.settings-card .install-hint .help { margin: 0 0 var(--s-2); }
+.settings-card > .group-lbl { margin: var(--s-4) 0 0; }
+
+/* Module: Zeilen mit Schalter, speichern sofort */
+.s-mod .ttl, .s-mod .desc { display: block; }
+.s-mod .setrow { cursor: pointer; }
+
+/* Vor der Fahrt prüfen: Prüfliste, Vorschläge zum Anhängen, darunter die Begleiter */
+#check-suggest .group-lbl { margin: 0 0 var(--s-2); }
+#check-suggest:not(:empty) { margin-bottom: var(--s-4); }
+.suggest { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.suggest .i { width: var(--ic-sm); height: var(--ic-sm); }
+.suggest .btn.sm::after, .lic-device .btn.sm::after { inset: calc(-1 * (var(--s-1) + 1px)) 0; }    /* 44 px Trefferfläche: inset zählt ab der Padding-Box, der 1-px-Rand fehlt sonst (Abschnitt 2: .btn.sm::after) */
+.s-split { padding-top: var(--s-4); border-top: 1px solid var(--line); }
+.s-split > .field:last-child { margin-bottom: 0; }
+
+/* Marke: Logo wählen (Button + Vorschau, keine native Dateiauswahl), Farbe als Farbfeld + Hex-Feld */
+.s-logo { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3); }
+.preview { max-height: 48px; max-width: 200px; padding: var(--s-1); border: 1px solid var(--line); border-radius: var(--r-1); background: var(--surface); }
+.btn:has(input[type=file]:focus-visible) { outline: 3px solid var(--accent-ink); outline-offset: 2px; }
+.s-color { display: flex; align-items: center; gap: var(--s-3); }
+input[type=color] { flex: none; width: var(--tap); height: var(--tap); padding: var(--s-0); border: 1px solid var(--field); border-radius: var(--r-1); background: var(--surface); cursor: pointer; }
+.s-hex { width: 100%; max-width: 160px; }
+
+/* Aufklapp-Zeilen (<details class="s-fold">): Titel, Wert rechts, darunter eine Karte mit den Feldern */
+.s-fold[open] > summary > .i:last-child { transform: rotate(180deg); }
+.s-fold > .card { margin-top: var(--s-2); }
+.s-fold-body > .field:last-child { margin-bottom: 0; }
+.s-ph { margin: 0 0 var(--s-4); }
+.d-ttl { min-width: 0; overflow-wrap: anywhere; }
+.d-val { margin-left: auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-3); font-size: var(--fs-2); line-height: var(--lh-2); font-weight: 400; }
+.d-tag { margin-left: auto; }
+.disclosure .d-val + .i:last-child, .disclosure .d-tag + .i:last-child { margin-left: 0; }
+
+/* Fester Fuß: „Speichern“ erscheint, sobald ein Feld geändert ist (auch auf der Seite „Neues Fahrzeug“); der Toast bleibt darüber */
+.sticky-save { position: sticky; bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom)); margin: var(--s-5) calc(-1 * var(--s-4)) 0; padding: var(--s-3) var(--s-4); background: var(--surface); border-top: 1px solid var(--line); }
+@media (min-width: 720px) { .sticky-save { bottom: 0; margin-inline: calc(-1 * var(--s-5)); padding-inline: var(--s-5); } }
+body:has(.settings-form .sticky-save:not([hidden])) #app-flash { bottom: calc(var(--tabbar-h) + var(--tap-lg) + 3 * var(--s-3) + env(safe-area-inset-bottom)); }
+@media (min-width: 720px) { body:has(.settings-form .sticky-save:not([hidden])) #app-flash { bottom: calc(var(--tap-lg) + 3 * var(--s-3)); } }
+
+/* ==== 10 Druck ==== */
+@media print {
+  .admin-bar, .tabbar, #app-flash, .btn, .link, .chips, .sticky-save, dialog { display: none !important; }
+  body, body:has(.admin-bar) { background: var(--white); }
+  .admin-main { max-width: none; padding: 0; }
+  .card, .list, .table-wrap { border-color: var(--line-strong); box-shadow: none; break-inside: avoid; }
+}
+
+/* ==== 11 Screen: Anzeige ==== */
+/* Aufruf-Anzeige (#/anzeige) für Fernseher oder freies Tablet: die einzige dunkle Fläche der App und deshalb die einzige Stelle mit
+   eigenen Farbwerten (--d-*). Größen wachsen mit dem Bildschirm (vh/vw, Token als Untergrenze), damit die Nummern aus mehreren Metern
+   lesbar bleiben; die Regeln darunter nehmen Maße und Farben nur aus diesen Variablen und den Tokens aus Abschnitt 0. „Aufgerufen“ =
+   Bernstein (--st-called-solid) wie in der Warteschlange; keine Schatten, keine Pillen. Gezeigt werden nur Nummern – nie Namen oder
+   Telefonnummern. */
+body.display {
+  color-scheme: dark;
+  --d-bg: #0f1115; --d-tile: #1c2027; --d-line: #2a2f38; --d-muted: #a4aab4;
+  --d-edge: max(var(--s-4), 3vh) max(var(--s-4), 4vw);        /* Seitenrand, auch gegen den Überscan von Fernsehern */
+  --d-space: max(var(--s-3), 2vh);                            /* zwischen Kacheln, Titel und Inhalt */
+  --d-space-lg: max(var(--s-4), 3.5vh);                       /* zwischen Kopf, Inhalt und Fuß */
+  --d-split: max(var(--s-4), 3vw);                            /* zwischen den Spalten */
+  --d-logo: max(32px, 6vh);
+  --d-fs-clock: max(var(--fs-4), 4vh);
+  --d-fs-h2: max(var(--fs-3), 3vh);
+  --d-fs-note: max(var(--fs-2), 2.8vh);
+  --d-fs-empty: max(var(--fs-4), 5vh);
+  --d-fs-next: max(var(--fs-5), 6.5vh);
+  --d-tile-pad: .12em; --d-next-pad: .15em .3em;              /* in em: wachsen mit der Schrift */
+  background: var(--d-bg); color: var(--white);
+  -webkit-user-select: none; user-select: none;
+}
+.display-wrap { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; padding: var(--d-edge); }
+.display-head { display: flex; align-items: center; gap: var(--s-4); }
+.display-id { min-width: 0; }
+.display-head .logo img { height: var(--d-logo); width: auto; max-width: 60vw; object-fit: contain; object-position: left center; filter: brightness(0) invert(1); }
+.display-clock { margin-left: auto; color: var(--d-muted); font-size: var(--d-fs-clock); line-height: 1; font-weight: 600; font-variant-numeric: tabular-nums; }
+.display-main { flex: 1 1 auto; display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--d-split); margin: var(--d-space-lg) 0; }
+.display-main h2 { margin: 0 0 var(--d-space); color: var(--d-muted); font-size: var(--d-fs-h2); line-height: 1.2; font-weight: 600; }
+.display-called { display: flex; flex-direction: column; min-width: 0; }
+.display-side { min-width: 0; padding-left: var(--d-split); border-left: 1px solid var(--d-line); }
+.display-muted { margin: var(--d-space) 0 0; color: var(--d-muted); font-size: var(--d-fs-note); line-height: 1.35; }
+.display-muted span { display: block; }       /* jede Angabe eine Zeile: Umbrüche nur dazwischen, nie mitten in „ca. 20 Min.“ */
+.display-empty { flex: 1 1 auto; display: grid; align-content: center; justify-items: center; margin: 0 auto; max-width: 16em; color: var(--d-muted); font-size: var(--d-fs-empty); line-height: 1.25; font-weight: 600; text-align: center; }
+.display-main.display-off { display: flex; align-items: center; justify-content: center; text-align: center; }
+/* Jetzt dran: eine Kachel ganz breit, ab zwei Kacheln zwei Spalten (Zeilen = Anzahl / 2, die letzte steht mittig). Die Schriftgröße
+   ist die kleinere von zwei Grenzen: Höhe (--d-h: so viele Zeilen passen untereinander) und Breite (--d-w für dreistellige Nummern in
+   der breitesten üblichen Systemschrift, mal --d-len: einstellige Nummern dürfen größer sein, vierstellige müssen kleiner sein). */
+.called-grid { --d-cols: 2; --d-w: 12vw; --d-h: 25vh; --d-len: 1; --d-fs-num: min(var(--d-h), calc(var(--d-w) * var(--d-len))); flex: 1 1 auto; display: flex; flex-wrap: wrap; justify-content: center; align-content: center; gap: var(--d-space); }
+.called-grid[data-count="0"] { display: none; }
+.called-grid[data-count="1"] { --d-cols: 1; --d-w: 25vw; --d-h: 42vh; }
+.called-grid[data-count="2"] { --d-h: 40vh; }
+.called-grid[data-count="5"], .called-grid[data-count="6"] { --d-h: 17vh; }
+.called-grid[data-len="1"] { --d-len: 2.4; }
+.called-grid[data-len="2"] { --d-len: 1.4; }
+.called-grid[data-len="3"] { --d-len: 1; }
+.called-grid[data-len="4"] { --d-len: .75; }
+.called-num {
+  flex: 0 0 calc((100% - (var(--d-cols) - 1) * var(--d-space)) / var(--d-cols) - .5px);   /* Spaltenbreite; −.5 px: Rundung darf keine Kachel in die nächste Zeile schieben */
+  display: grid; place-items: center; min-width: 0; padding: var(--d-tile-pad); border-radius: var(--r-2); background: var(--d-tile); color: var(--white); font-size: var(--d-fs-num); line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.02em; white-space: nowrap;
+}
+.called-num.newest { background: var(--st-called-solid); color: var(--ink); }
+.called-num.flash-in { animation: display-flash-in 1.6s ease-out; }
+@keyframes display-flash-in {
+  0% { transform: scale(.92); opacity: 0; }
+  25% { transform: scale(1.04); opacity: 1; filter: brightness(1.25); }
+  50% { transform: scale(1); filter: none; }
+  75% { transform: scale(1.02); filter: brightness(1.15); }
+  100% { transform: scale(1); filter: none; }
+}
+/* Als Nächstes */
+.next-list { display: flex; flex-wrap: wrap; gap: var(--d-space); }
+.next-num, .next-none { font-size: var(--d-fs-next); line-height: 1; font-weight: 600; font-variant-numeric: tabular-nums; }
+.next-num { padding: var(--d-next-pad); border-radius: var(--r-1); background: var(--d-tile); }
+.next-none { color: var(--d-muted); }
+/* Fuß: Zugang fürs Team (ruhig), Verbindungshinweis, Ton und Vollbild */
+.display-foot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-4); }
+.display-staff { display: inline-flex; align-items: center; min-height: var(--tap); margin-left: calc(-1 * var(--s-3)); padding: 0 var(--s-3); color: var(--d-muted); font-size: var(--fs-1); line-height: var(--lh-1); text-decoration: none; }
+.display-conn { display: inline-flex; align-items: center; gap: var(--s-2); margin: 0; color: var(--st-called-solid); font-size: var(--fs-2); line-height: var(--lh-2); font-weight: 600; }
+.display-foot .btn { margin-left: auto; }
+.display-foot .btn.primary { background: var(--white); color: var(--ink); }
+.display-foot .btn.quiet { color: var(--d-muted); }
+.display-wrap :focus-visible { outline-color: var(--white); }
+.screen.display.idle, .screen.display.idle * { cursor: none; }      /* im Vollbild nach 3 s Ruhe, siehe display.js */
+@media (hover: hover) {
+  .display-staff:hover, .display-foot .btn.quiet:hover { background: none; color: var(--white); }
+  .display-staff:hover { text-decoration: underline; }
+}
+.display-foot .btn.quiet:active { background: var(--d-tile); }
+/* Hochformat und schmale Fenster (Handy, Tablet hochkant, gedrehter Fernseher): eine Spalte, „Als Nächstes“ unter den Aufrufen */
+@media (max-width: 799px), (orientation: portrait) {
+  body.display { --d-space-lg: max(var(--s-3), 2.5vh); --d-fs-h2: max(var(--fs-3), 2.6vh); --d-fs-note: max(var(--fs-2), 2.4vh); --d-fs-next: max(var(--fs-5), 4.8vh); }
+  .display-main { grid-template-columns: minmax(0, 1fr); align-content: start; gap: var(--d-space-lg); }
+  .display-side { padding-left: 0; border-left: 0; }
+  .called-grid { --d-w: 19vw; --d-h: 12vh; }
+  .called-grid[data-count="1"] { --d-w: 40vw; --d-h: 24vh; }
+  .called-grid[data-count="2"] { --d-h: 18vh; }
+  .called-grid[data-count="5"], .called-grid[data-count="6"] { --d-h: 8.5vh; }
+  .display-empty { flex: none; margin: var(--d-space) auto; }
+  .display-main.display-off .display-empty { flex: 0 1 auto; min-width: 0; }                        /* Hinweis statt Nummern („nicht aktiv“, keine Lizenz): darf umbrechen, statt über den Rand zu laufen */
+  .display-foot { position: sticky; bottom: 0; padding: var(--s-2) 0; background: var(--d-bg); }     /* scrollt der Inhalt, bleibt der Knopf erreichbar */
+}
+
+/* ==== 12 Aktivierung & Anbieter ==== */
+/* Aktivierung (#/aktivieren, screens/activate.js) wiederholt die Karte des Login (Abschnitt 4: .gate); neu sind die Gerätekennung (groß, mit „Kopieren“), das
+   Codefeld, die Zeile zur bisherigen Lizenz und das Aufklappfeld für den langen Schlüssel. Der Anbieter-Bereich (#/anbieter, screens/vendor.js) hat eine eigene schmale
+   Kopfzeile statt des Admin-Rahmens und darunter ein kleines Start-Dashboard (große Knöpfe, Karten „Code für ein Gerät“, „Links“, „Zuletzt erzeugt“) sowie die
+   Kundenliste (#/anbieter/kunden). Codes und Gerätekennungen stehen überall in der Mono-Schrift (wie URLs), nie in Akzentfarbe. */
+.code-input { text-align: center; font-family: var(--mono); font-size: var(--fs-5); line-height: var(--lh-5); letter-spacing: .18em; }
+.code-input::placeholder { letter-spacing: .18em; }
+.gate-form .field .code-input { min-height: 60px; }               /* gewinnt gegen .lead-form .field input (52 px) */
+#lizenz .code-input { text-align: left; }
+.device-input { font-family: var(--mono); font-size: var(--fs-4); line-height: var(--lh-4); letter-spacing: .12em; }
+.device-input::placeholder { letter-spacing: .12em; }
+.act-device { margin: var(--s-4) 0 0; padding: var(--s-4); border-radius: var(--r-2); background: var(--surface-2); text-align: center; }
+.act-device-lbl { margin: 0; color: var(--ink-2); font-size: var(--fs-2); line-height: var(--lh-2); }
+.act-device-id { margin: var(--s-1) 0 var(--s-3); font-family: var(--mono); font-size: var(--fs-6); line-height: var(--lh-6); letter-spacing: .12em; font-weight: 700; user-select: all; overflow-wrap: anywhere; }
+.act-sub { margin: var(--s-2) 0 var(--s-5); }
+.act .banner { margin-bottom: var(--s-4); text-align: left; }
+.act-current { margin: 0 0 var(--s-4); padding: var(--s-2) var(--s-3); border-radius: var(--r-1); background: var(--surface-2); color: var(--ink-2); font-size: var(--fs-2); line-height: var(--lh-2); overflow-wrap: anywhere; }
+.act-key { margin-top: var(--s-5); text-align: left; }
+.act-key[open] > summary > .i:last-child { transform: rotate(180deg); }
+.act-key > .card { margin-top: var(--s-2); }
+.act-key .field { margin-bottom: var(--s-3); }
+.act-key textarea { font-size: var(--fs-1); line-height: var(--lh-1); overflow-wrap: anywhere; }
+.act-key .errmsg { margin: 0 0 var(--s-3); }
+.act .kiosk-admin-link { margin-top: var(--s-4); }
+/* Schritte der Aktivierung (screens/activate.js): drei Karten untereinander – 1 App installieren · 2 Gerätekennung an den Anbieter senden · 3 Code eingeben.
+   Jede Karte hat höchstens eine gefüllte Hauptaktion (R1: „Installieren“ in Schritt 1, wo der Browser den Dialog anbietet, „Aktivieren“ in Schritt 3).
+   Läuft die App schon installiert, schrumpft Schritt 1 zu einer Zeile mit Haken. */
+.act-steps { display: grid; gap: var(--s-3); margin: 0 0 var(--s-5); padding: 0; list-style: none; text-align: left; }
+.act-step { min-width: 0; padding: var(--s-4); border: 1px solid var(--line); border-radius: var(--r-2); background: var(--surface); }
+.act-step-h { margin: 0 0 var(--s-3); }
+.act-step-no { display: block; color: var(--ink-3); font-size: var(--fs-1); line-height: var(--lh-1); font-weight: 600; }
+.act-step-ttl { display: block; font-size: var(--fs-3); line-height: var(--lh-3); font-weight: 700; overflow-wrap: anywhere; }
+.act-step-sub { margin: 0 0 var(--s-3); color: var(--ink-2); font-size: var(--fs-2); line-height: var(--lh-2); }
+.act-step.done { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s-1) var(--s-3); border-color: transparent; background: var(--surface-2); }
+.act-step.done .act-step-h { margin: 0; }
+.act-detect { margin: 0 0 var(--s-3); color: var(--ink-3); font-size: var(--fs-1); line-height: var(--lh-1); }
+.act-more { margin: var(--s-2) 0 calc(-1 * var(--s-2)) calc(-1 * var(--s-3)); }      /* ruhiger Link: Text bündig mit den Schritten, Trefferfläche bleibt 44 px */
+.act-step .act-device { margin: 0 0 var(--s-3); }
+.act-step .banner { margin: var(--s-3) 0 0; }
+.act-defer { display: flex; align-items: flex-start; gap: var(--s-2); margin: 0 0 var(--s-3); color: var(--ink-2); font-size: var(--fs-2); line-height: var(--lh-2); }
+.act-defer > .i { margin-top: var(--s-0); }
+.act-step > :last-child:not(.act-more) { margin-bottom: 0; }
+.act-browser-id > summary { padding-block: var(--s-3); font-size: var(--fs-2); line-height: var(--lh-2); }      /* ruhiger als die Zeile des Lizenzschlüssels: zweitrangig */
+.act-browser-id[open] > summary > .i:last-child { transform: rotate(180deg); }
+.act-browser-id > .act-device { margin: var(--s-2) 0 0; }
+.act-browser-id > .help { margin-top: var(--s-2); }
+
+/* Karte „Lizenz“ der Einstellungen: der Kasten mit dem Grund unter dem Codefeld, die Gerätekennung mit „Kopieren“ in der Faktenliste */
+#license-code-msg:not(:empty) { margin-bottom: var(--s-3); }
+#license-code-msg .banner { margin: 0; }
+#lizenz .lic-facts { align-items: center; }
+.lic-device { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-1) var(--s-3); }
+.lic-device-id { font-family: var(--mono); font-weight: 700; letter-spacing: .08em; user-select: all; }
+
+/* Anbieter-Bereich: Kopfzeile (Logo, Titel, Sperren) und Inhalt */
+body:has(.vendor-bar) { background: var(--bg); }
+.vendor-bar { position: sticky; top: 0; z-index: var(--z-bar); display: flex; align-items: center; gap: var(--s-3); height: var(--bar-h); padding: 0 var(--s-2) 0 var(--s-4); background: var(--surface); border-bottom: 1px solid var(--line); }
+.vendor-bar .logo img { height: 28px; max-width: 140px; object-fit: contain; object-position: left center; }
+.vendor-title { margin: 0; min-width: 0; font-size: var(--fs-3); line-height: var(--lh-3); font-weight: 700; }
+.vendor-bar .btn { margin-left: auto; color: var(--ink-2); }
+.vendor-main { max-width: 1040px; margin: 0 auto; padding: var(--s-4) var(--s-4) var(--s-6); }
+.vendor-main[data-screen=vendor-customers] { max-width: 720px; }
+@media (min-width: 720px) { .vendor-main { padding: var(--s-4) var(--s-5) var(--s-6); } }
+.v-h { margin: 0 0 var(--s-3); font-size: var(--fs-3); line-height: var(--lh-3); font-weight: 700; }
+#vendor-error { margin: 0 0 var(--s-3); }
+.vendor-actions { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-3); }
+
+/* Dashboard: drei große Knöpfe in einer Reihe (Symbol über dem Wort, ab 560 px daneben), darunter ab 800 px zwei Spalten (Formular | Links, Zuletzt erzeugt) */
+.vendor-nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-2); margin-bottom: var(--s-3); }
+.vendor-tile { flex-direction: column; gap: var(--s-1); min-height: calc(var(--tap-lg) + var(--s-1)); padding: var(--s-2) var(--s-1); }
+@media (min-width: 560px) { .vendor-tile { flex-direction: row; gap: var(--s-2); padding: 0 var(--s-4); } .vendor-nav { gap: var(--s-3); } }
+.vendor-grid, .vendor-side { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-3); align-content: start; }
+.vendor-grid > *, .vendor-side > * { min-width: 0; }               /* ein langer Name darf die Spalte nie breiter machen als den Bildschirm */
+@media (min-width: 560px) { .vendor-card .fields-2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr); } }   /* die Nummer braucht weniger Platz als der Name: „Kundenname (optional)“ bleibt einzeilig */
+@media (min-width: 800px) { .vendor-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; } }
+.vendor-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-2); margin-bottom: var(--s-3); }
+.vendor-card-head .v-h { margin: 0; }
+
+/* Code anzeigen: das Ergebnis groß, mit Kopieren und dem Satz zur Gültigkeit */
+.vendor-result { margin-top: var(--s-4); padding: var(--s-4); border-radius: var(--r-2); background: var(--accent-tint); text-align: center; }
+.vendor-result-for, .vendor-result-device { margin: 0; color: var(--ink-2); font-size: var(--fs-2); line-height: var(--lh-2); overflow-wrap: anywhere; }
+.vendor-code-big { margin: var(--s-2) 0 var(--s-3); font-family: var(--mono); font-size: var(--fs-6); line-height: var(--lh-6); letter-spacing: .12em; font-weight: 700; user-select: all; }
+.vendor-result .vendor-actions { justify-content: center; margin-top: 0; }
+.vendor-result-note { margin: var(--s-3) 0 0; color: var(--ink-2); font-size: var(--fs-2); line-height: var(--lh-2); }
+
+/* Links: App und Anleitung zum Kopieren */
+.vendor-links { list-style: none; margin: 0; padding: 0; }
+.vendor-link { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-2) 0; border-top: 1px solid var(--line); }
+.vendor-link:first-child { padding-top: 0; border-top: 0; }
+.vendor-link:last-child { padding-bottom: 0; }
+.vendor-link-main { flex: 1; min-width: 0; }
+.vendor-link-name { margin: 0; font-size: var(--fs-2); line-height: var(--lh-2); font-weight: 600; }
+.vendor-url { margin: 0; color: var(--ink-2); font-family: var(--mono); font-size: var(--fs-1); line-height: var(--lh-1); overflow-wrap: anywhere; user-select: all; }
+.vendor-link .btn { flex: none; }
+@media (max-width: 559px) { .vendor-link { flex-wrap: wrap; } .vendor-link-main { flex-basis: 100%; } .vendor-link .btn { margin-left: auto; } }   /* Handy: die Adresse bekommt die ganze Breite, „Kopieren“ steht darunter */
+
+/* Zuletzt erzeugt (Dashboard) und Kundenliste: eine Zeile je Gerät; Kunde (Nr., Name) als Zeilenkopf bzw. Kastenkopf */
+.vendor-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--s-1) var(--s-3); margin: 0 0 var(--s-3); }
+.vendor-saved { margin: 0; }
+.vendor-search { margin-bottom: var(--s-3); }
+.vendor-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); margin-bottom: var(--s-3); }
+.vendor-list, .vendor-devices { list-style: none; margin: 0; padding: 0; }
+.vendor-row { display: flex; align-items: center; gap: var(--s-3); padding: calc(var(--s-1) + var(--s-0)) 0; border-top: 1px solid var(--line); }
+.vendor-row:first-child { padding-top: 0; border-top: 0; }
+.vendor-row:last-child { padding-bottom: 0; }
+.vendor-row-main { flex: 1 1 12em; min-width: 0; }
+.vendor-row .btn { flex: none; }
+.vendor-row-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--s-2); margin-left: auto; }
+.vendor-devices .vendor-row { flex-wrap: wrap; padding: var(--s-3) 0; }
+.vendor-devices .vendor-row:first-child { padding-top: 0; }
+.vendor-devices .vendor-row:last-child { padding-bottom: 0; }
+.vendor-empty { color: var(--ink-2); font-size: var(--fs-2); line-height: var(--lh-2); }
+p.vendor-empty { margin: 0; }
+.vendor-group { margin-bottom: var(--s-3); }
+.vendor-group-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-2); margin-bottom: var(--s-3); }
+.vendor-group-head .vendor-name { min-width: 0; }
+.vendor-name { margin: 0; font-size: var(--fs-3); line-height: var(--lh-3); font-weight: 600; overflow-wrap: anywhere; }
+.vendor-list .vendor-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }   /* Dashboard: eine Zeile je Eintrag, damit es ohne Scrollen bleibt (die Kundenliste zeigt den ganzen Namen) */
+.vendor-no { color: var(--ink-3); font-size: var(--fs-2); font-weight: 400; white-space: nowrap; }
+.vendor-ids { margin: 0; font-size: var(--fs-2); line-height: var(--lh-2); }
+.vendor-id-lbl { color: var(--ink-3); font-size: var(--fs-1); }
+.vendor-mono { font-family: var(--mono); letter-spacing: .06em; }
+.vendor-code-row { font-size: var(--fs-3); line-height: var(--lh-3); font-weight: 600; }
+.vendor-meta { margin: 0; color: var(--ink-2); font-size: var(--fs-1); line-height: var(--lh-1); }
+
+/* ==== 13 Installation (screens/install.js, Schritt 1 der Aktivierung) ==== */
+/* Anleitung zum Installieren: nummerierte Schritte, Besonderheit des Browsers, Installieren-Knopf (nur Chromium) mit Hinweis danach – in Schritt 1 der Aktivierung
+   und auf der Seite #/installieren (erkanntes Gerät hervorgehoben, darunter aufklappbar alle Geräte und Browser). */
+.inst-prompt { margin: 0 0 var(--s-3); }
+.inst-after { display: flex; align-items: flex-start; gap: var(--s-2); margin: 0; color: var(--st-free-ink); font-size: var(--fs-2); line-height: var(--lh-2); font-weight: 600; }
+.inst-after > .i { margin-top: var(--s-0); }
+.inst-steps { margin: 0; padding-left: var(--s-5); color: var(--ink); font-size: var(--fs-2); line-height: var(--lh-2); }
+.inst-steps li { padding-left: var(--s-1); }
+.inst-steps li + li { margin-top: var(--s-2); }
+.inst-extra { margin: var(--s-3) 0 0; color: var(--ink-2); font-size: var(--fs-2); line-height: var(--lh-2); }
+.inst-body > .inst-extra:first-child { margin-top: 0; }
+.inst-warn { margin-top: var(--s-4); text-align: left; }
+.act-step .inst-warn { margin-top: var(--s-4); }
+.install { padding-bottom: var(--s-6); }
+.install .title { margin: var(--s-1) 0 0; }
+.inst-lead { margin: var(--s-2) 0 var(--s-5); color: var(--ink-2); font-size: var(--fs-3); line-height: var(--lh-3); }
+.inst-here { margin: 0 0 var(--s-5); border-color: color-mix(in srgb, var(--accent) 50%, var(--surface)); background: var(--accent-tint); }
+.inst-lbl { margin: 0 0 var(--s-2); }
+.inst-ttl { margin: 0 0 var(--s-3); font-size: var(--fs-4); line-height: var(--lh-4); font-weight: 700; }
+.inst-installed { margin: 0; }
+.install .sec { margin-top: 0; }
+.inst-group[open] > summary > .i:last-child { transform: rotate(180deg); }
+.inst-group > .card { margin-top: var(--s-2); }
+.inst-group-body > .inst-storage:first-child { margin-top: 0; margin-bottom: var(--s-4); }
+.inst-browser + .inst-browser { margin-top: var(--s-4); padding-top: var(--s-4); border-top: 1px solid var(--line); }
+.inst-browser h3 { margin: 0 0 var(--s-2); font-size: var(--fs-3); line-height: var(--lh-3); font-weight: 700; }
+.v-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-3); margin: 0 0 var(--s-3); }   /* Kartenkopf mit Zusatzlink rechts – kostet keine Höhe */
+.v-head .v-h { margin: 0; }
+.vendor-dl { font-size: var(--fs-2); line-height: var(--lh-2); color: var(--accent-ink); font-weight: 600; white-space: nowrap; }   /* Download-Link zum Laptop-Programm */
